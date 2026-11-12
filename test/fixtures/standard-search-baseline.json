@@ -606,7 +606,8 @@
             2
           ]
         }
-      ]
+      ],
+      "schemaFile": "ocr-search-schema-nullable-reviewed.sql"
     }
   ]
 }
