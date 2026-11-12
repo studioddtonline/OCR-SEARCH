@@ -20,6 +20,7 @@ OCR-SEARCH は検索の意味・検索処理・日本語専用索引形式を所
 | OCR本文・reviewed・書誌情報の書き込み、履歴 | 各アプリ |
 | DB接続の作成・所有・終了、DBパス・アプリ設定の読み込み | 各アプリ |
 | MCP tool schema、Zod/MCP JSON Schema、認証・認可・HTTP | ocr-mcp-server |
+| CLI 検索コマンド、検索 DB の open / close、明示的な引数処理 | OCR-SEARCH CLI |
 | Web API、認証・認可、UI | book-ocr Web UI |
 
 初期利用者は ocr-mcp-server、book-ocr Web UI、および OCR-SEARCH CLI。モノレポにはしない。book-ocr は OCR・DB 管理に専念し、独自の CLI 検索実装・検索コマンドは持たない。CLI 検索が必要な場合は OCR-SEARCH が提供する CLI を直接利用する。初期配布は GitHub Releases の npm pack tarball を想定し、公開 npm は必須としない。
@@ -102,6 +103,7 @@ term ごとに Unicode code points 数で切り替える。
 - 3 code points 以上: images_fts MATCH ? を使う FTS5 trigram phrase 検索。term を FTS5 phrase として引用し、二重引用符をエスケープする。
 - AND / OR / NOT は SQLite の parameterized SQL predicate に変換する。ユーザー入力を SQL / FTS5 演算子として直接連結しない。
 - label は source_images.file_path の完全一致。reviewed は式全体に適用。
+- DB 契約上、`reviewed=0` のみ未レビュー。`NULL` および `0` 以外の値は保護対象（レビュー済み扱い）とする。検索 filter と OCR write 側でこの意味を変えない。
 
 #### 順序・ページング・件数
 
@@ -239,7 +241,9 @@ term ごとに Unicode code points 数で切り替える。
 - 接続を開くのは利用アプリ。
 - OCR-SEARCH は渡された接続を使う。
 - OCR-SEARCH は接続を close しない。
-- 検索 instance を close した後、アプリが DB 接続を close する。
+- `OcrSearch.close()` は package 所有の日本語 Worker を終了するが、呼び出し側の `DatabaseSync` は close しない。
+- 利用側は `OcrSearch.close()` の完了後に自分の DB 接続を close する。
+- close 完了後の検索呼び出しは明示的な safe error とする。
 - package は DB path / process.env / config を参照しない。
 - package は schema migration をしない。
 
