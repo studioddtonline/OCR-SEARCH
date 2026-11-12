@@ -6,6 +6,8 @@
 - 基準 commit: `d9f23b0a7870ea267670bcf27208942172e27563`
 - 目的: OCR-SEARCH 抽出前後の検索 semantics を比較するため、現行テストと fixture の出所・責務を固定する。
 
+実行可能なテストの配置・実装順序・完了条件は [regression-test-matrix.md](./regression-test-matrix.md) を参照。
+
 この文書は現行テストの棚卸しであり、OCR-SEARCH 側への移植やテスト実行が完了したことを示すものではない。抽出時には上記 commit を不変の比較基準とし、main の後続変更を暗黙に取り込まない。
 
 ## 1. 基準テストファイル
