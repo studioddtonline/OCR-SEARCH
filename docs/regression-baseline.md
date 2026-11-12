@@ -142,3 +142,16 @@ Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI�
 4. MCP / Web UI / CLI固有の入出力テストは各consumerに置く。
 5. BOOK-OCR本体は検索consumerではない。検索テスト・検索adapter・CLI検索機能を設計対象に含めない。BOOK-OCR Web UIは独立consumerとして後続に設計する。
 6. 抽出前後の比較が完了するまでは、baselineを更新しない。baseline更新が必要な場合は別commit / 別理由で行う。
+
+## 9. OCR-SEARCH側に追加したfixture
+
+抽出前の検索データをOCR-SEARCH側でも再利用できるよう、次のtest-only fixtureを追加した。
+
+- `test/fixtures/ocr-search-schema.sql`: OCR-MCP-SERVER の `test/support/ocr-fixture.ts` と同じ `source_images` / external-content trigram `images_fts` schema。migrationやtriggerは含めない。
+- `test/fixtures/standard-search-baseline.json`: 標準検索のscenario別row data、期待ID、keyset pagination期待値。source testのfixtureとassertionを転記。
+- `test/fixtures/japanese-search-baseline.json`: 日本語検索Worker integrationの固定metadata・document・期待値。Vaporettoのtoken列はextension実行時に生成し、推測値を固定しない。
+- `test/fixtures/README.md`: fixtureの由来と更新ルール。
+
+fixture作成後、standard fixture JSONを再読込して構文検証し、Unicode lowercasingケースの先頭がsource testと同じ50個の `İ`、surrogate pairケースの `𠮷` より前が159 UTF-16 code unitsであることを確認した。
+
+**この段階で完了したのはfixture dataの準備だけである。** executable regression test、baseline implementationとの自動比較、native extension integrationの実行はまだ行っていない。今後のテスト実装では、fixtureから各scenarioのSQLite DBを生成する共通helperを追加し、source testから移植した期待値をそのまま検証する。
