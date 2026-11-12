@@ -13,6 +13,10 @@ function readJson(path) {
 const standard = readJson("test/fixtures/standard-search-baseline.json");
 const japanese = readJson("test/fixtures/japanese-search-baseline.json");
 const schema = readFileSync(resolve(root, "test/fixtures/ocr-search-schema.sql"), "utf8");
+const nullableReviewedSchema = readFileSync(
+  resolve(root, "test/fixtures/ocr-search-schema-nullable-reviewed.sql"),
+  "utf8",
+);
 
 assert.equal(standard.formatVersion, 1);
 assert.equal(standard.source.commit, sourceCommit);
@@ -56,6 +60,8 @@ const surrogateCase = standard.cases.find((item) => item.id === "surrogate-pair-
 assert.equal(surrogateCase.rows[0].text.indexOf("𠮷"), 159);
 const reviewedCase = standard.cases.find((item) => item.id === "reviewed-fail-closed");
 assert.deepEqual(reviewedCase.rows.map((row) => row.reviewed), [1, 0, 2, null]);
+assert.equal(reviewedCase.schemaFile, "ocr-search-schema-nullable-reviewed.sql");
+assert.match(nullableReviewedSchema, /reviewed INTEGER\\s*[,)]/i);
 
 assert.equal(japanese.metadata.schema_version, 2);
 assert.equal(japanese.metadata.tokenizer, "vaporetto-pretokenized-unicode61");
