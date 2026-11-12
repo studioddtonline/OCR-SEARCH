@@ -148,6 +148,7 @@ Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI�
 抽出前の検索データをOCR-SEARCH側でも再利用できるよう、次のtest-only fixtureを追加した。
 
 - `test/fixtures/ocr-search-schema.sql`: OCR-MCP-SERVER の `test/support/ocr-fixture.ts` と同じ `source_images` / external-content trigram `images_fts` schema。migrationやtriggerは含めない。
+- `test/fixtures/ocr-search-schema-nullable-reviewed.sql`: reviewed fail-closed test専用。元テストが `reviewed INTEGER`（nullable）でDBを手動作成する点を維持する。通常fixtureの `NOT NULL` schemaを誤って使わない。
 - `test/fixtures/standard-search-baseline.json`: 標準検索のscenario別row data、期待ID、keyset pagination期待値。source testのfixtureとassertionを転記。
 - `test/fixtures/japanese-search-baseline.json`: 日本語検索Worker integrationの固定metadata・document・期待値。Vaporettoのtoken列はextension実行時に生成し、推測値を固定しない。
 - `test/fixtures/README.md`: fixtureの由来と更新ルール。
