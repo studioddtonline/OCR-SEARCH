@@ -270,8 +270,6 @@ term ごとに Unicode code points 数で切り替える。
 - original-image Worker を OCR-SEARCH に依存させない。
 - 汎用 Worker package は初回抽出では作らない。
 
-## 6. 日本語索引の更新・再接続
-
 ## 6. DB更新・日本語索引再構築後の再起動運用
 
 OCR-SEARCH は、稼働中プロセスが OCR 元DBや日本語検索 index の更新を自動検知して接続を再生成する機能を提供しない。Web UI に ocr-mcp-server と異なる長期稼働・無停止更新要件は設けない。
