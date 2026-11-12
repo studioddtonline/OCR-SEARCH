@@ -14,7 +14,7 @@ OCR-SEARCH は検索の意味・検索処理・日本語専用索引形式を所
 |---|---|
 | 標準検索の AST、検証、SQL 生成、検索、snippet、pagination | OCR-SEARCH |
 | 日本語検索の tokenizer、検索、BM25、snippet、Worker | OCR-SEARCH |
-| 日本語専用索引の形式、builder、reader、再接続 | OCR-SEARCH |
+| 日本語専用索引の形式、builder、reader | OCR-SEARCH |
 | Vaporetto installer / checker、version・SHA-256 固定 | OCR-SEARCH |
 | OCR 元DBの schema、migration、source_images、images_fts、同期trigger | book-ocr |
 | OCR本文・reviewed・書誌情報の書き込み、履歴 | 各アプリ |
@@ -272,36 +272,27 @@ term ごとに Unicode code points 数で切り替える。
 
 ## 6. 日本語索引の更新・再接続
 
-現行 MCP は索引再構築後にプロセスを再起動する。長期稼働する Web UI ではこの運用だけでは不十分。
+## 6. DB更新・日本語索引再構築後の再起動運用
 
-### 要件
+OCR-SEARCH は、稼働中プロセスが OCR 元DBや日本語検索 index の更新を自動検知して接続を再生成する機能を提供しない。Web UI に ocr-mcp-server と異なる長期稼働・無停止更新要件は設けない。
 
-検索要求の処理前に indexPath の file identity を検査できること。比較対象は device / inode（取得可能な場合）、mtime、size。rename replacement を検知できるようにし、mtime だけに依存しない。
+### 運用上の必須条件
 
-### 切り替え
+OCR データベースの更新、または日本語検索 index の再構築・置換を行った場合は、検索利用アプリケーションを再起動する。
 
-1. 現在の index connection の file identity を保持。
-2. 次の要求処理前に path を stat。
-3. identity が同じなら現行接続を使う。
-4. 変化があれば新 DB を read-only で開き、extension load、schema / metadata / MATCH probe。
-5. 正常な場合のみ Worker 内で接続を切り替える。
-6. 旧接続を close。
-7. 新 metadata を結果に反映。
+- ocr-mcp-server: 現行運用どおりプロセスを再起動する。
+- book-ocr Web UI: Web UI の Node.js サーバープロセスを再起動する。
+- 両アプリとも、更新・再構築が正常に完了した後に再起動し、新しい DB / index を起動時に開く。
+- 再起動前のプロセスが古い DB connection または index connection を保持している間は、そのプロセスが更新後のデータを参照することを保証しない。
+- 稼働中の自動 stat、inode 比較、index connection の hot swap、retry loop は実装しない。
 
-Worker は検索を逐次処理するため、同一 Worker 内で検索中に切り替えない。
+### 日本語 index builder の置換
 
-### 新索引が不正な場合
+builder は引き続き staging file を構築・検証してから rename で置換する。これは索引ファイルを壊さず更新するための builder 側の要件であり、稼働中 consumer の自動再接続を意味しない。再構築後は consumer を再起動する。
 
-- 不正な新索引に切り替えない。
-- 新要求には safe error を返し、古い snapshot の結果を新しい結果のように返さない。
-- 次の要求で再度 stat / open / validate を試せる。
-- 原因はログに残すが、利用者向けエラーにローカルパスを含めない。
+### 起動時検証
 
-この自動再接続は日本語 index のみ。OCR 元DBの接続再生成はアプリ責務。
-
-### 置換時の運用
-
-builder は同一ファイルシステム上の staging file から rename する。rename semantics が異なる OS は別途検証する。
+各 consumer は起動時に必要な DB / index を開き、schema・metadata・extension の検証を行う。不適合なら起動を失敗させ、安全なエラーを報告する。更新後の状態を利用するには、修正・再構築後に consumer を再起動する。
 
 ## 7. 公開 API 案
 
@@ -485,7 +476,7 @@ OCR-SEARCH integration tests は同期済み DB で期待検索結果を確認�
 - FIFO / cancellation / queue capacity / queue timeout / execution timeout
 - startup deadline / bounded restart / backoff / idle failure
 - close / terminate
-- index file replacement / reopen / invalid replacement
+- builder 完了後のプロセス再起動を前提とした index open / validation
 - builder snapshot consistency / staging cleanup / failure preserving old index
 
 ### Consumer に残す
@@ -510,7 +501,7 @@ OCR-SEARCH integration tests は同期済み DB で期待検索結果を確認�
 - Web API validation / authz
 - pagination UI / result rendering
 - Web UI 固有の書き込み・履歴
-- long-running process の日本語 index reload integration
+- DB更新または日本語 index 再構築後に Web UI Node.js サーバーを再起動する運用
 
 初回は共通 fixture package を作らない。OCR-SEARCH test support に最小 fixture を置き、book-ocr conformance test は book-ocr migration から DB を作って validator を呼ぶ。共有期待値が必要になってから versioned JSON fixtures を検討。
 
@@ -662,7 +653,7 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 3. Web API で input validation / authz。
 4. UI 検索文字列構文は別途決定。初期から AST JSON をユーザーに入力させない。
 5. 必要なら後続 minor で parseQueryText() を追加。
-6. 長期稼働時の Japanese index reload を検証。
+6. OCR DB 更新または Japanese index 再構築後は Web UI Node.js サーバーを再起動する運用とする。
 
 ## 14. 抽出後の仕様変更として後回しにするもの
 
@@ -682,7 +673,7 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 1. **Node engine:** MCP 現行は >=22.16.0、book-ocr は Node 24+ と報告。node:sqlite API と consumer matrix を確認して確定。
 2. **package name:** ocr-search は仮称。公開 npm の場合は namespace availability を確認。
 3. **standard result contract:** MCP tool の公開 field names / nullability / numeric representation を実装時に完全転記。
-4. **Japanese index reload:** stat identity の比較タイミング、invalid replacement retry、log/error contract をテスト仕様化。
+4. **再起動運用:** OCR DB 更新または日本語 index 再構築後、ocr-mcp-server と Web UI の Node.js サーバーを再起動する。稼働中の自動再接続は要件に含めない。
 5. **OS support:** 現行 installer は Linux x86_64 / aarch64 のみ。初期サポート範囲もこれを基準にする。
 6. **Vaporetto version/hash:** 現行 v0.4.0 を初期固定値として移す。更新は別途 license / compatibility / regression を確認。
 7. **testing export:** ocr-search/testing は公開 subpath とし、production API と分離。
@@ -699,7 +690,7 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 - [ ] native binary を tarball に含めない。
 - [ ] worker.mjs / dist / notices が tarball に含まれる。
 - [ ] tarball install smoke test が通る。
-- [ ] index replacement / reconnect tests が通る。
+- [ ] index builder の staging / validation / rename tests が通る。
 
 ### ocr-mcp-server
 - [ ] 標準・日本語検索は OCR-SEARCH を利用。
