@@ -61,7 +61,7 @@ assert.equal(surrogateCase.rows[0].text.indexOf("𠮷"), 159);
 const reviewedCase = standard.cases.find((item) => item.id === "reviewed-fail-closed");
 assert.deepEqual(reviewedCase.rows.map((row) => row.reviewed), [1, 0, 2, null]);
 assert.equal(reviewedCase.schemaFile, "ocr-search-schema-nullable-reviewed.sql");
-assert.match(nullableReviewedSchema, /reviewed INTEGER\\s*[,)]/i);
+assert.match(nullableReviewedSchema, /reviewed INTEGER\s*[,)]/i);
 
 assert.equal(japanese.metadata.schema_version, 2);
 assert.equal(japanese.metadata.tokenizer, "vaporetto-pretokenized-unicode61");
