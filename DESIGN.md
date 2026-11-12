@@ -18,12 +18,12 @@ OCR-SEARCH は検索の意味・検索処理・日本語専用索引形式を所
 | Vaporetto installer / checker、version・SHA-256 固定 | OCR-SEARCH |
 | OCR 元DBの schema、migration、source_images、images_fts、同期trigger | book-ocr |
 | OCR本文・reviewed・書誌情報の書き込み、履歴 | 各アプリ |
-| DB接続の作成・所有・終了、DBパス・アプリ設定の読み込み | 各アプリ |
+| DB接続の作成・所有・終了、DBパス・アプリ設定の読み込み | 各 consumer（CLI は OCR-SEARCH CLI） |
 | MCP tool schema、Zod/MCP JSON Schema、認証・認可・HTTP | ocr-mcp-server |
 | CLI 検索コマンド、検索 DB の open / close、明示的な引数処理 | OCR-SEARCH CLI |
 | Web API、認証・認可、UI | book-ocr Web UI |
 
-初期利用者は ocr-mcp-server、book-ocr Web UI、および OCR-SEARCH CLI。モノレポにはしない。book-ocr は OCR・DB 管理に専念し、独自の CLI 検索実装・検索コマンドは持たない。CLI 検索が必要な場合は OCR-SEARCH が提供する CLI を直接利用する。初期配布は GitHub Releases の npm pack tarball を想定し、公開 npm は必須としない。
+初期利用者は ocr-mcp-server、book-ocr Web UI、および OCR-SEARCH CLI。モノレポにはしない。book-ocr は OCR・DB 管理に専念し、独自の CLI 検索実装・検索コマンドは持たない。CLI 検索が必要な場合は OCR-SEARCH が提供する CLI（例: `ocr-search search --database <path>`）を直接利用する。CLI は DB path、必要なら日本語 index path / extension path などを明示引数で受け取り、consumer 固有 config を暗黙に読み込まない。初期配布は GitHub Releases の npm pack tarball を想定し、公開 npm は必須としない。
 
 **抽出フェーズでは検索仕様を変更しない。** 仕様変更は抽出完了後の別作業・別バージョンにする。
 
@@ -306,7 +306,8 @@ builder は引き続き staging file を構築・検証してから rename で�
 
 - ocr-search: 検索 API、型、AST parser。
 - ocr-search/testing: DB contract test helper。
-- ocr-search/japanese-index: 日本語 index builder API（CLI は bin entry）。
+- ocr-search/japanese-index: 日本語 index builder API。
+- `ocr-search` bin: `search`（標準 / 日本語 CLI 検索）および `build-japanese-index` command。CLI は明示引数で DB / index / extension path を受け取る。
 
 初期から core/sqlite 等の細分化 subpath は増やさない。
 
