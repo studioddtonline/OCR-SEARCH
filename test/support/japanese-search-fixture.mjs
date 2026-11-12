@@ -2,11 +2,11 @@ import { DatabaseSync } from "node:sqlite";
 
 const INDEXED_AT = "2026-01-01T00:00:00.000Z";
 const SOURCE_TEXT = "東京特許許可局";
-const SEARCHABLE_TOKEN = /[\\p{L}\\p{N}]/u;
+const SEARCHABLE_TOKEN = /[\p{L}\p{N}]/u;
 
 function searchableTokens(value) {
   return String(value ?? "")
-    .split(/\\s+/u)
+    .split(/\s+/u)
     .filter((token) => token.length > 0 && SEARCHABLE_TOKEN.test(token));
 }
 
