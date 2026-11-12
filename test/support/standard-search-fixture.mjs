@@ -8,7 +8,7 @@ const projectRoot = resolve(supportDir, "../..");
 const baseline = JSON.parse(
   readFileSync(resolve(projectRoot, "test/fixtures/standard-search-baseline.json"), "utf8"),
 );
-const schemaSql = readFileSync(
+const defaultSchemaSql = readFileSync(
   resolve(projectRoot, "test/fixtures/ocr-search-schema.sql"),
   "utf8",
 );
@@ -28,6 +28,9 @@ export function createStandardSearchFixture(caseId, filename = ":memory:") {
 
   const db = new DatabaseSync(filename);
   try {
+    const schemaSql = scenario.schemaFile
+      ? readFileSync(resolve(projectRoot, "test/fixtures", scenario.schemaFile), "utf8")
+      : defaultSchemaSql;
     db.exec(schemaSql);
     const insert = db.prepare(insertRowSql);
     for (const row of scenario.rows) {
