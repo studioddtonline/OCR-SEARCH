@@ -22,7 +22,7 @@ OCR-SEARCH は検索の意味・検索処理・日本語専用索引形式を所
 | MCP tool schema、Zod/MCP JSON Schema、認証・認可・HTTP | ocr-mcp-server |
 | Web API、認証・認可、UI | book-ocr Web UI |
 
-初期利用者は ocr-mcp-server と book-ocr Web UI。モノレポにはしない。初期配布は GitHub Releases の npm pack tarball を想定し、公開 npm は必須としない。
+初期利用者は ocr-mcp-server、book-ocr Web UI、および OCR-SEARCH CLI。モノレポにはしない。book-ocr は OCR・DB 管理に専念し、独自の CLI 検索実装・検索コマンドは持たない。CLI 検索が必要な場合は OCR-SEARCH が提供する CLI を直接利用する。初期配布は GitHub Releases の npm pack tarball を想定し、公開 npm は必須としない。
 
 **抽出フェーズでは検索仕様を変更しない。** 仕様変更は抽出完了後の別作業・別バージョンにする。
 
@@ -183,7 +183,9 @@ term ごとに Unicode code points 数で切り替える。
 
 抽出時にはキュー・キャンセル・timeout・再起動の挙動を維持する。
 
-### 3.3 意図的に異なる仕様
+### 3.3 標準検索と日本語検索の意図的な仕様差
+
+ここに示す差は、同じ OCR-SEARCH package 内の異なる検索方式に由来するものであり、抽出時点では維持する。BOOK-OCR 独自検索との仕様差を残すという意味ではない。BOOK-OCR の旧検索実装は廃止し、CLI も OCR-SEARCH の検索実装を利用する。
 
 | 項目 | 標準検索 | 日本語検索 |
 |---|---|---|
@@ -258,7 +260,7 @@ term ごとに Unicode code points 数で切り替える。
 
 標準検索も日本語検索も Promise を返す。ただし Promise 化だけでは同期 SQLite 処理が別スレッドになるわけではない。
 
-初期版では標準検索の既存同期処理を維持し、Promise API で包む。イベントループ占有が実測上の問題になった場合に標準検索の Worker 化を別途検討する。抽出のためだけに標準検索を Worker 化しない。
+初期版では標準検索の既存同期処理を維持し、Promise API で包む。標準検索の `AbortSignal` は処理開始前のキャンセル確認に限り、同期 SQLite 処理の開始後の中断は保証しない。日本語検索の Abort は Worker queue の状態に応じた既存のキャンセル動作を維持する。両者でキャンセル保証が異なることを API ドキュメントに明記する。イベントループ占有が実測上の問題になった場合に標準検索の Worker 化を別途検討する。抽出のためだけに標準検索を Worker 化しない。抽出後は必要に応じて検索実行時間・イベントループ遅延を計測し、Worker 化を別途判断する。
 
 ### 5.4 WorkerHost
 
@@ -378,6 +380,8 @@ API上の注意:
 - parser は unknown を受け取り、package 固有 SearchQueryValidationError を投げる。
 - MCP adapter が package error を MCP safe tool error に変換。
 - Web UI は必要に応じて同じ parser をサーバー側で使う。
+- 制約定数と意味論的 validation の正本は OCR-SEARCH。MCP の Zod schema は OCR-SEARCH が公開する制約定数を参照し、浅い入力境界検証を担当する。AST の深度・総ノード数・循環 / shared object・positive term 等の最終検証は OCR-SEARCH parser が担当する。Zod と parser は検証段階が異なり、制約値や意味論を独立に複製しない。
+- Unicode code point 数の厳密な term 長検証は parser が担当する。Zod の string `.max()` は UTF-16 code unit 基準なので、厳密な code point 上限として扱わない。
 
 ### 日本語 index builder API 案
 
@@ -396,6 +400,19 @@ export function buildJapaneseSearchIndex(
 ```
 
 builder は source DB read-only、required columns 検証、schema v2 作成、staging transaction、smoke test、close、rename を担当。config/env は読まない。CLI は明示引数を受け取り、同じ API を呼ぶ。
+
+### package エラー契約
+
+package は少なくとも次の分類を公開する。内部原因 (`cause`) や詳細はログ用に保持してよいが、利用者向け message にローカルパス、SQL、stack trace、native extension の内部詳細を含めない。
+
+- `SearchQueryValidationError`: query / AST の不正。
+- `SearchUnavailableError`: DB / index / extension の不適合、機能無効など。
+- `SearchCancelledError`: キャンセル。
+- `SearchQueryError`: SQL 実行など検索処理の失敗。
+- `SearchWorkerError`: Worker 起動・異常終了。
+- `SearchNoSearchableTokensError`（または安定した error code）: 日本語 tokenizer が検索可能 token を生成しなかった状態。
+
+MCP adapter は package error を MCP safe error に変換し、Web UI adapter は HTTP status と UI 向け safe response に変換する。package は consumer の transport / UI error format を知らない。
 
 ## 8. DB contract
 
@@ -501,6 +518,14 @@ OCR-SEARCH integration tests は同期済み DB で期待検索結果を確認�
 - Web UI 固有の書き込み・履歴
 - DB更新または日本語 index 再構築後に Web UI Node.js サーバーを再起動する運用
 
+テストは次の3層に分ける。
+
+1. **DB contract conformance**: schema、必須列、FTS5 virtual table / MATCH probe、日本語 index metadata。
+2. **semantics regression**: 代表 query の結果 ID 集合・順序・snippet・filter・pagination。標準検索と日本語検索の意図的な仕様差も固定する。
+3. **Worker lifecycle**: queue、timeout、cancel、startup failure、restart/backoff、close/terminate。
+
+抽出前後で同一 fixture DB と同一 query に対する結果 ID・順序・snippet 等が一致することを受け入れ条件とする。BOOK-OCR 旧検索の結果は別仕様なので比較基準にはせず、BOOK-OCR CLI は移行後に OCR-SEARCH の semantics を使用する。
+
 初回は共通 fixture package を作らない。OCR-SEARCH test support に最小 fixture を置き、book-ocr conformance test は book-ocr migration から DB を作って validator を呼ぶ。共有期待値が必要になってから versioned JSON fixtures を検討。
 
 ## 10. package 構成案
@@ -581,7 +606,7 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 
 - package name: ocr-search（仮称。公開 npm を使う場合は namespace availability を確認）
 - module: ESM
-- 現行 OCR-MCP-SERVER package engine は >=22.16.0。book-ocr 実運用は Node 24+ と報告されている。node:sqlite API を確認し、既存 MCP consumer の互換性を落とさない範囲で engine を決める。
+- Node engine の共通下限は `>=22.16.0` を採用候補とする。OCR-MCP-SERVER が既にこの下限であり、BOOK-OCR の Node 24+ は先行したローカル実行環境に合わせた設定である。OCR-SEARCH が使用する `node:sqlite` / Worker API と native extension load API が 22.16.0 で満たされることを実装前に確認し、問題がなければ OCR-SEARCH、OCR-MCP-SERVER、BOOK-OCR を `>=22.16.0` に統一する。
 - exports を明示し内部 deep import を避ける。
 - files allowlist で dist / worker / notices / runtime assets を含める。
 - native binary / consumer config / test files は tarball に含めない。
@@ -601,8 +626,10 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 1. OCR-MCP-SERVER main commit SHA を記録。
 2. 現行標準・日本語検索 tests を確認。
 3. 検索仕様表と test inventory を確定。
-4. semantics を変更しない。
-5. source repo に未コミット変更がある場合、抽出元 commit を明確化。
+4. BOOK-OCR の `src/search/` と CLI 検索 command / flags / output の利用状況を棚卸しする。旧検索実装は移行後に削除し、旧検索 semantics は維持対象にしない。
+5. 抽出前の検索回帰 fixture と期待結果を確定する。
+6. semantics を変更しない。
+7. source repo に未コミット変更がある場合、抽出元 commit を明確化する。
 
 ### Phase 1 — package skeleton
 1. OCR-SEARCH に package.json / tsconfig / scripts / README。
@@ -638,12 +665,13 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 8. tarball SHA-256 を GitHub Release に添付。
 
 ### Phase 5 — book-ocr migration
-1. book-ocr が release tarball を dependency に追加。
-2. 旧 src/search/ と旧 search command を削除。
-3. schema / migrations / images_fts / triggers / reindex / status は残す。
-4. migration DB に対し assertSearchDatabaseCompatible(db)。
-5. PRAGMA user_version は book-ocr が管理し、OCR-SEARCH は使用しない。
-6. Web UI は Node server-side から利用。
+1. book-ocr Web UI が release tarball を dependency に追加。
+2. BOOK-OCR の独自 `src/search/`、旧 CLI 検索 command / flags に属する検索実装を削除する。BOOK-OCR は OCR・DB 管理を担当し、検索 engine を所有しない。
+3. CLI 検索は OCR-SEARCH が提供する CLI command を直接利用する。DB path 等は明示引数で渡し、BOOK-OCR 固有 config を OCR-SEARCH が暗黙に読み込まない。
+4. schema / migrations / images_fts / triggers / reindex / status は残す。
+5. migration DB に対し assertSearchDatabaseCompatible(db)。
+6. PRAGMA user_version は book-ocr が管理し、OCR-SEARCH は使用しない。
+7. Web UI は Node server-side から利用。
 
 ### Phase 6 — Web UI
 1. Node server が DB connection を開く。
@@ -681,6 +709,9 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 ### OCR-SEARCH
 - [ ] 独立して install / typecheck / build / test できる。
 - [ ] 標準・日本語検索の既存 tests が package 内にある。
+- [ ] DB contract / semantics regression / Worker lifecycle の3層でテストが整理されている。
+- [ ] 抽出前後の同一入力・同一 DB で検索結果 ID、順序、snippet が一致する。
+- [ ] package のエラー message にローカルパス・SQL・stack trace 等が含まれない。
 - [ ] 公開 API に Zod / MCP SDK が含まれない。
 - [ ] 標準検索 DB connection は caller-owned。
 - [ ] 日本語 Worker は index DB を read-only で開く。
@@ -698,7 +729,8 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 
 ### book-ocr
 - [ ] DB schema / migration / FTS5 lifecycle は book-ocr が所有。
-- [ ] 旧検索実装を削除。
+- [ ] 独自検索実装・CLI 検索機能を削除し、CLI 検索は OCR-SEARCH CLI を利用する。
+- [ ] Node engine は OCR-SEARCH / OCR-MCP-SERVER と同じ下限に統一する。
 - [ ] book-ocr DB が package conformance validator に合格。
 - [ ] write trigger tests は book-ocr 側に残る。
 
@@ -724,6 +756,8 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 | MCP config / runtime / tools | 移動しない。options に設定を渡す |
 
 ## 18. 参照した現行ソース
+
+BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出後の検索仕様の正本にはしない。CLI 検索は OCR-SEARCH の CLI に一本化する。
 
 設計根拠として OCR-MCP-SERVER/main の次のファイルを確認した。
 
