@@ -1,0 +1,111 @@
+{
+  "formatVersion": 1,
+  "source": {
+    "repository": "studioddtonline/OCR-MCP-SERVER",
+    "commit": "d9f23b0a7870ea267670bcf27208942172e27563",
+    "file": "src/features/ocr/repository.test.ts"
+  },
+  "cases": [
+    {
+      "id": "keyset-pagination",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "sample OCR one", "reviewed": 0 },
+        { "id": 2, "label": "Book A", "fileName": "002.webp", "text": "sample OCR two", "reviewed": 0 },
+        { "id": 3, "label": "Book B", "fileName": "003.webp", "text": "sample OCR three", "reviewed": 1 }
+      ],
+      "queries": [
+        { "query": "sample", "limit": 1, "offset": 0, "snippetLength": 80, "expectedIds": [1], "nextAfterId": 1 },
+        { "query": "sample", "limit": 1, "offset": 0, "afterId": 1, "snippetLength": 80, "expectedIds": [2], "nextAfterId": 2 },
+        { "query": "sample", "limit": 2, "offset": 0, "afterId": 2, "snippetLength": 80, "expectedIds": [3], "nextAfterId": null }
+      ]
+    },
+    {
+      "id": "short-literal-substring",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "本文中に川がある", "reviewed": 0 },
+        { "id": 2, "label": "Book A", "fileName": "002.webp", "text": "川辺の風景", "reviewed": 1 },
+        { "id": 3, "label": "Book B", "fileName": "003.webp", "text": "河川敷", "reviewed": 0 },
+        { "id": 4, "label": "Book B", "fileName": "004.webp", "text": "湖畔", "reviewed": 0 }
+      ],
+      "queries": [
+        { "query": "川", "limit": 1, "offset": 0, "snippetLength": 80, "expectedIds": [1], "nextAfterId": 1 },
+        { "query": "川", "limit": 1, "offset": 0, "afterId": 1, "snippetLength": 80, "expectedIds": [2], "nextAfterId": 2 },
+        { "query": "川", "limit": 1, "offset": 0, "afterId": 2, "snippetLength": 80, "expectedIds": [3], "nextAfterId": null },
+        { "query": "川", "label": "Book A", "reviewed": false, "limit": 5, "offset": 0, "snippetLength": 80, "expectedIds": [1], "nextAfterId": null }
+      ]
+    },
+    {
+      "id": "boolean-ast",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "宮崎監督のアニメ制作。ラピュタ。", "reviewed": 0 },
+        { "id": 2, "label": "Book A", "fileName": "002.webp", "text": "宮崎監督の映画。劇場版字幕", "reviewed": 1 },
+        { "id": 3, "label": "Book B", "fileName": "003.webp", "text": "ラピュタは映画です。字幕なし", "reviewed": 0 },
+        { "id": 4, "label": "Book B", "fileName": "004.webp", "text": "アニメ映画。", "reviewed": 0 },
+        { "id": 5, "label": "Book C", "fileName": "005.webp", "text": "東京特許許可局は有名です。川もある。", "reviewed": 1 }
+      ],
+      "queries": [
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "宮崎" }, { "type": "term", "value": "監督" }] }, "expectedIds": [1, 2] },
+        { "query": { "type": "or", "nodes": [{ "type": "term", "value": "ラピュタ" }, { "type": "term", "value": "アニメ" }] }, "expectedIds": [1, 3, 4] },
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "宮崎" }, { "type": "not", "node": { "type": "term", "value": "劇場版" } }] }, "expectedIds": [1] },
+        { "query": { "type": "or", "nodes": [{ "type": "and", "nodes": [{ "type": "term", "value": "宮崎" }, { "type": "term", "value": "監督" }] }, { "type": "and", "nodes": [{ "type": "term", "value": "ラピュタ" }, { "type": "not", "node": { "type": "term", "value": "劇場版" } }] }] }, "expectedIds": [1, 2, 3] },
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "東京特許" }, { "type": "term", "value": "川" }] }, "expectedIds": [5] }
+      ]
+    },
+    {
+      "id": "structured-filter-pagination",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "宮崎監督 アニメ", "reviewed": 0 },
+        { "id": 2, "label": "Book A", "fileName": "002.webp", "text": "宮崎監督 映画", "reviewed": 1 },
+        { "id": 3, "label": "Book B", "fileName": "003.webp", "text": "宮崎監督 アニメ", "reviewed": 0 }
+      ],
+      "queries": [
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "宮崎" }, { "type": "or", "nodes": [{ "type": "term", "value": "アニメ" }, { "type": "term", "value": "映画" }] }] }, "limit": 1, "offset": 0, "snippetLength": 80, "expectedIds": [1], "nextAfterId": 1 },
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "宮崎" }, { "type": "or", "nodes": [{ "type": "term", "value": "アニメ" }, { "type": "term", "value": "映画" }] }] }, "limit": 1, "offset": 0, "afterId": 1, "snippetLength": 80, "expectedIds": [2], "nextAfterId": 2 },
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "宮崎" }, { "type": "or", "nodes": [{ "type": "term", "value": "アニメ" }, { "type": "term", "value": "映画" }] }] }, "limit": 1, "offset": 0, "afterId": 2, "snippetLength": 80, "expectedIds": [3], "nextAfterId": null },
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "宮崎" }, { "type": "or", "nodes": [{ "type": "term", "value": "アニメ" }, { "type": "term", "value": "映画" }] }] }, "label": "Book B", "reviewed": false, "limit": 10, "offset": 0, "snippetLength": 80, "expectedIds": [3], "nextAfterId": null }
+      ]
+    },
+    {
+      "id": "quoted-and-injection-like-terms",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "A \"quoted\" phrase", "reviewed": 0 },
+        { "id": 2, "label": "Book A", "fileName": "002.webp", "text": "ordinary text", "reviewed": 0 }
+      ],
+      "queries": [
+        { "query": "\"quoted\"", "expectedIds": [1] },
+        { "query": "x\") OR 1=1 --", "expectedIds": [] }
+      ]
+    },
+    {
+      "id": "unicode-lowercase-expansion",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "İİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİ target phrase appears here", "reviewed": 0 }
+      ],
+      "queries": [
+        { "query": { "type": "and", "nodes": [{ "type": "term", "value": "TARGET" }, { "type": "term", "value": "PHRASE" }] }, "limit": 5, "offset": 0, "snippetLength": 60, "expectedIds": [1], "snippetMustContain": "target phrase", "snippetMustNotEqual": "…"}
+      ]
+    },
+    {
+      "id": "surrogate-pair-boundaries",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa𠮷bbbbbbbbbbbbbbbbbbbb", "reviewed": 0 }
+      ],
+      "queries": [
+        { "query": "a", "limit": 5, "offset": 0, "snippetLength": 160, "expectedIds": [1], "snippetMustContain": "𠮷", "getByIdMaxLength": 160, "getByIdExpectedTextLength": 159, "getByIdMustNotContain": "𠮷"}
+      ]
+    },
+    {
+      "id": "reviewed-fail-closed",
+      "rows": [
+        { "id": 1, "label": "Book A", "fileName": "001.webp", "text": "alpha one", "reviewed": 1 },
+        { "id": 2, "label": "Book A", "fileName": "002.webp", "text": "alpha two", "reviewed": 0 },
+        { "id": 3, "label": "Book A", "fileName": "003.webp", "text": "alpha three", "reviewed": 2 },
+        { "id": 4, "label": "Book A", "fileName": "004.webp", "text": "alpha four", "reviewed": null }
+      ],
+      "queries": [
+        { "query": "alpha", "reviewed": true, "expectedIds": [1, 3, 4] },
+        { "query": "alpha", "reviewed": false, "expectedIds": [2] }
+      ]
+    }
+  ]
+}
