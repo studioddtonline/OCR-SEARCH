@@ -55,22 +55,20 @@
 `src/features/japanese-search/repository.test.ts` の10テストを基準とする。
 
 ### 実SQLite / extension integration
-1. Vaporetto extensionで作成したschema v2のpre-tokenized contentless FTS5 indexをWorkerから開き、検索できること。
-2. query token、search result ID / label / reviewed、snippet highlight、index metadataを確認。
-3. `any` / `all` の意味論とreviewed filterを確認。
+1. Vaporetto extensionで作成したschema v2のpre-tokenized contentless FTS5 indexをWorkerから開き、検索できること。query token、result ID / label / reviewed、snippet highlight、index metadata、`any` / `all`、reviewed filterを同じintegration test blockで確認する。
 
 ### Worker lifecycle（Fake Worker）
-4. idle Worker failure後、次の要求が来るまで再spawnしない。
-5. idle pre-ready failure後も、次の要求が来て初めてretryする。
-6. startup failureのretry回数上限、exponential backoff、上限到達後の再試行拒否。
-7. `startup-error` はterminalであり、自動restart loopに入らない。
-8. queue-wait deadlineを超えたqueued requestを失敗させる。
-9. FIFOで1件ずつdispatchし、active + queued capacityを守る。
-10. queued requestのAbortで該当requestのみを除去し、active requestを妨害しない。
-11. execution timeoutはWorkerからstarted通知後に開始し、timeout後もqueued requestを再spawnしたWorkerへ引き継ぐ。
-12. execution timeoutを繰り返してもpre-ready startup retry budgetを消費しない。
+2. idle Worker failure後、次の要求が来るまで再spawnしない。
+3. idle pre-ready failure後も、次の要求が来て初めてretryする。
+4. startup failureのretry回数上限、exponential backoff、上限到達後の再試行拒否。
+5. `startup-error` はterminalであり、自動restart loopに入らない。
+6. queue-wait deadlineを超えたqueued requestを失敗させる。
+7. FIFOで1件ずつdispatchし、active + queued capacityを守る。
+8. queued requestのAbortで該当requestのみを除去し、active requestを妨害しない。
+9. execution timeoutを繰り返してもpre-ready startup retry budgetを消費しない。
+10. execution timeoutはWorkerからstarted通知後に開始し、timeout後もqueued requestを再spawnしたWorkerへ引き継ぐ。
 
-注: 上記は実際のファイルに含まれる10個の `test()` blockを、個々のassertionの観点で分解した一覧である。1つのtest blockが複数の検証項目を含む。テスト数を12件と解釈しないこと。
+この一覧は現行ファイルの10個の `test()` blockに対応する。
 
 Fake Worker testsはタイミング制御と状態遷移を検証する。実Worker integrationは実extensionとfixture indexを使い、fakeだけでは保証できないSQLite / Worker境界を検証する。抽出後も両層を維持する。
 
