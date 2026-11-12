@@ -1,0 +1,131 @@
+# OCR-MCP-SERVER 検索回帰テスト基準
+
+- 状態: baseline inventory / extraction preparation
+- 基準リポジトリ: `studioddtonline/OCR-MCP-SERVER`
+- 基準ブランチ: `main`
+- 基準 commit: `d9f23b0a7870ea267670bcf27208942172e27563`
+- 目的: OCR-SEARCH 抽出前後の検索 semantics を比較するため、現行テストと fixture の出所・責務を固定する。
+
+この文書は現行テストの棚卸しであり、OCR-SEARCH 側への移植やテスト実行が完了したことを示すものではない。抽出時には上記 commit を不変の比較基準とし、main の後続変更を暗黙に取り込まない。
+
+## 1. 基準テストファイル
+
+| ファイル | 現行テスト数 | 扱い |
+|---|---:|---|
+| `src/features/ocr/repository.test.ts` | 15 | 検索に関係するテストをOCR-SEARCHへ移植。非検索のDB統計・label listing・DB unavailable テストはconsumer側に残すか責務に応じて再配置 |
+| `src/features/japanese-search/repository.test.ts` | 10 | 全件を日本語検索のintegration / Worker lifecycle基準として移植 |
+| `src/mcp/tools.test.ts` | 検索関連テストを含む | MCP境界テスト。OCR-SEARCHへ移植せず、package API接続テストとしてMCP側に残す |
+| `test/support/ocr-fixture.ts` | — | 標準検索用の最小SQLite fixture。検索用fixtureとしてOCR-SEARCH test supportへ再構成 |
+| `test/support/sqlite-vaporetto-extension.ts` | — | 日本語index fixture生成時のextension loader。OCR-SEARCH test supportへ移植 |
+| `src/features/ocr/query.ts` | — | AST parser/compilerの意味論の根拠。Zod boundary schemaはMCP側に残す |
+| `src/features/ocr/repository.ts` | — | 標準検索・snippet・prepared statement cacheの実装基準 |
+| `src/features/japanese-search/worker.mjs` | — | 日本語tokenization・検索・BM25・snippetの実装基準 |
+
+基準ファイルの blob SHA:
+- `src/features/ocr/repository.test.ts`: `5724b74e6e2db0bfe838bfafadeaa0c6e2cdefe0`
+- `src/features/japanese-search/repository.test.ts`: `49cd2882bd6d66b9518d61f0dd0ed5a7a590d6d5`
+- `src/mcp/tools.test.ts`: `b50cbf9bc9b42dfab27102cfc7ad952ac9ed7e76`
+- `test/support/ocr-fixture.ts`: `cd4f386d822d44d2413c7eb55b2a257674d44aed`
+
+## 2. 標準検索 regression inventory
+
+`src/features/ocr/repository.test.ts` のうち、次の挙動をOCR-SEARCH側で固定する。
+
+1. keyset cursorによる複数ページ検索、ID昇順、最終ページの `nextAfterId: null`。
+2. 1〜2 Unicode code pointsのliteral substring検索とkeyset pagination。日本語1文字が長い文字列の内部に現れるケースを含む。
+3. AND / OR / NOT / nested boolean ASTの結果ID。
+4. nested ASTとlabel / reviewed filter / paginationの組み合わせ。
+5. NOT-only、空term、過剰な深さ、過剰なnode数、500 Unicode code points超のterm拒否。
+6. 20,000階層の入力をZod再帰処理に渡さず、iterative parserでstack overflow前に拒否すること。OCR-SEARCH側ではZodを使わず、parserの同等の安全性を直接検証する。
+7. FTS phraseに含まれる引用符のescaping、およびFTS operator / SQL injection風文字列をデータとして扱うこと。
+8. Unicode lowercasingで `İ` が展開する場合のsnippet offset。
+9. snippet / record text truncationでUTF-16 surrogate pairを分断しないこと。
+10. reviewed filterのfail-closed意味論。0のみunreviewed、NULLおよび0以外はreviewed扱い。
+11. 1文字queryのliteral substring semantics。
+12. prepared SQL statement cacheの上限64とLRU eviction。
+
+注意:
+- 現行テストのうち `getStats and label listing work against a minimal schema`、`label listing applies its limit in SQLite`、`database startup failure is a fixed client-safe message` は検索エンジンの回帰基準ではない。consumer側のDB repository責務として残す。
+- `review-state filters and statistics use the same fail-closed semantics` は検索filter assertionをOCR-SEARCHへ移す。統計値 assertionはconsumer側に残す。可能ならテストを分割する。
+- 既存のfixtureは `source_images` とexternal-content trigram `images_fts` を作る。OCR-SEARCH test supportでは同じDB contractを再現するが、migrationやtrigger作成責任をpackageへ移さない。
+- 標準検索テストは現行ファイル内でunitとSQLite integrationが混在している。移植時は意味論を変えず、parser/compiler単体テストとSQLite integrationに整理してよい。
+
+## 3. 日本語検索 regression inventory
+
+`src/features/japanese-search/repository.test.ts` の10テストを基準とする。
+
+### 実SQLite / extension integration
+1. Vaporetto extensionで作成したschema v2のpre-tokenized contentless FTS5 indexをWorkerから開き、検索できること。
+2. query token、search result ID / label / reviewed、snippet highlight、index metadataを確認。
+3. `any` / `all` の意味論とreviewed filterを確認。
+
+### Worker lifecycle（Fake Worker）
+4. idle Worker failure後、次の要求が来るまで再spawnしない。
+5. idle pre-ready failure後も、次の要求が来て初めてretryする。
+6. startup failureのretry回数上限、exponential backoff、上限到達後の再試行拒否。
+7. `startup-error` はterminalであり、自動restart loopに入らない。
+8. queue-wait deadlineを超えたqueued requestを失敗させる。
+9. FIFOで1件ずつdispatchし、active + queued capacityを守る。
+10. queued requestのAbortで該当requestのみを除去し、active requestを妨害しない。
+11. execution timeoutはWorkerからstarted通知後に開始し、timeout後もqueued requestを再spawnしたWorkerへ引き継ぐ。
+12. execution timeoutを繰り返してもpre-ready startup retry budgetを消費しない。
+
+注: 上記は実際のファイルに含まれる10個の `test()` blockを、個々のassertionの観点で分解した一覧である。1つのtest blockが複数の検証項目を含む。テスト数を12件と解釈しないこと。
+
+Fake Worker testsはタイミング制御と状態遷移を検証する。実Worker integrationは実extensionとfixture indexを使い、fakeだけでは保証できないSQLite / Worker境界を検証する。抽出後も両層を維持する。
+
+## 4. MCP境界テストの扱い
+
+`src/mcp/tools.test.ts` の検索関連テストはMCP側に残す。主な対象:
+- MCP入力schemaがliteral queryとnested ASTを受け付けること。
+- MCP toolのJSON Schemaがrecursive ASTを公開すること。
+- MCP設定のmaxLimitがboundaryで適用されること。
+- MCP toolがqueryをpackage APIへ渡し、MCP result envelopeへ変換すること。
+- package errorをMCP safe errorへ写像し、ローカルpath / SQL / driver detailを漏らさないこと。
+- Japanese search toolの登録条件とunavailable時のsafe response。
+
+Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI回帰テストに混ぜない。MCP consumer integration testではOCR-SEARCH公開APIを実際に呼ぶ構成へ置き換える。
+
+## 5. 抽出前後の比較方法
+
+### 必須比較
+同一SQLite fixture DB（同一行・同一ID・同一FTS index）と同一query/optionsを使い、抽出前のOCR-MCP-SERVER基準実装と抽出後のOCR-SEARCHで以下を比較する。
+
+- result IDの集合と順序
+- `returned`、`limit`、`offset`、`nextAfterId`
+- `file_path` / `file_name` / `reviewed`
+- snippetの完全一致（省略記号、強調、長さを含む）
+- reviewed / label filterの結果
+- AST validationの受理・拒否とerror category
+- 日本語検索のqueryTokens、result ID順、score、snippet、nextOffset、index metadata
+- Worker lifecycleの状態遷移とsafe error category
+
+### Golden expectations
+- 現行テストのinline fixtureと期待IDをまずそのまま移植し、移植時に都合よく期待値を変更しない。
+- 実行環境依存の絶対パス、時刻、native error message、Worker request IDはgolden値に含めない。
+- BM25 scoreは同一fixture / 同一SQLite・extension条件で比較する。浮動小数の完全一致が環境依存になる場合は、順位を必須一致とし、丸めたscoreの比較許容幅を明記する。許容幅は実測前に勝手に決めない。
+- Japanese index metadataのindexed_atはfixture固定値を使う。
+- extensionがない環境ではnative integrationをskipできるが、CI / release acceptanceではextension付きの実行を必須にする。
+
+## 6. まだ基準化されていない領域
+
+現時点で確認した上記テストファイルだけでは、以下のbuilder・package distribution acceptanceを十分に保証できない。別途追加する。
+- Japanese index builderのsnapshot consistency、staging file cleanup、rename failure時の旧index保持。
+- source DB read-only、schema / required-column validation。
+- schema v2 metadata mismatch / malformed FTS schema rejection。
+- package Worker asset path解決、npm pack tarball install後のWorker起動。
+- close後のAPI呼び出し、close中のactive / queued request rejection、terminate完了待ち。
+- standard searchのAbortSignal開始前キャンセル。
+- caller-owned DatabaseSyncがpackage close後もopenのままであること。
+- DB contract validatorのpositive / negative conformance cases。
+
+これらはOCR-MCP-SERVERの既存検索テストから移植したと主張せず、OCR-SEARCHの新規テストとして追加する。
+
+## 7. 実装時のルール
+
+1. このbaselineはsource commit `d9f23b0a7870ea267670bcf27208942172e27563` に固定する。
+2. 抽出と同時に検索 semantics、snippet、ranking、pagination、timeoutを改善しない。
+3. テスト移植のためのAPI差分はadapterで吸収し、期待値を安易に変更しない。
+4. MCP / Web UI / CLI固有の入出力テストは各consumerに置く。
+5. BOOK-OCR本体は検索consumerではない。検索テスト・検索adapter・CLI検索機能を設計対象に含めない。BOOK-OCR Web UIは独立consumerとして後続に設計する。
+6. 抽出前後の比較が完了するまでは、baselineを更新しない。baseline更新が必要な場合は別commit / 別理由で行う。
