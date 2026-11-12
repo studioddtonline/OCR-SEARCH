@@ -5,6 +5,8 @@ The fixture files in this directory are pinned to OCR-MCP-SERVER commit
 
 - `standard-search-baseline.json`: scenario-specific source rows and result-ID / pagination expectations from `src/features/ocr/repository.test.ts`.
 - `japanese-search-baseline.json`: real-extension index metadata, source document, and assertions from the Japanese Worker integration test.
+- `test/support/standard-search-fixture.mjs`: creates an in-memory SQLite database for one standard-search scenario and returns the caller-owned handle.
+- `test/support/japanese-search-fixture.mjs`: builds the one-document Japanese index with the real Vaporetto extension and closes the builder connection before the Worker opens it.
 
 These are data fixtures, not executable tests. The parser/compiler rejection cases,
 prepared-statement LRU assertions, Worker lifecycle state-machine tests, and
