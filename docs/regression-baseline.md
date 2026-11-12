@@ -155,3 +155,7 @@ Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI�
 fixture作成後、standard fixture JSONを再読込して構文検証し、Unicode lowercasingケースの先頭がsource testと同じ50個の `İ`、surrogate pairケースの `𠮷` より前が159 UTF-16 code unitsであることを確認した。
 
 **この段階で完了したのはfixture dataの準備だけである。** executable regression test、baseline implementationとの自動比較、native extension integrationの実行はまだ行っていない。今後のテスト実装では、fixtureから各scenarioのSQLite DBを生成する共通helperを追加し、source testから移植した期待値をそのまま検証する。
+- `test/support/standard-search-fixture.mjs`: scenario別JSONからin-memory SQLite DBを構築し、external-content FTS5 indexをrebuildする。返却したDB接続は呼び出し側がcloseする。
+- `test/support/japanese-search-fixture.mjs`: 実Vaporetto extensionで固定metadata / 1 documentのschema v2 indexを生成し、Workerが開く前にbuilder接続をcloseする。
+
+fixture dataとbuilderは準備したが、package APIに対するexecutable regression testsはまだ作成していない。
