@@ -72,7 +72,22 @@
 
 Fake Worker testsはタイミング制御と状態遷移を検証する。実Worker integrationは実extensionとfixture indexを使い、fakeだけでは保証できないSQLite / Worker境界を検証する。抽出後も両層を維持する。
 
-## 4. MCP境界テストの扱い
+## 4. DB contract validator の基準
+
+`src/features/ocr/sqlite.test.ts` には7個のtest blockがある（blob SHA: `2182b32cf7b988fd9c52f5244e5cb1c4fc4ea7b6`）。
+
+OCR-SEARCHの `ocr-search/testing` に移す候補:
+1. 完全なschemaがvalidatorを通過すること。既存テスト内の `getStats()` assertionはconsumer側、`search()` assertionは標準検索integration側に分ける。
+2. 余分な列・列順の違い・大文字小文字の列名を許容すること。
+3. `source_images` または `images_fts` の欠落を拒否すること。
+4. source_imagesの必須列欠落を列名付きで拒否すること。
+5. images_ftsがFTS5 virtual tableでない場合（通常table / FTS4）を拒否すること。
+6. FTS5 MATCH probe失敗をschema validation errorとして包み、causeを保持すること。
+7. validator失敗時にDB handleをcloseし、file descriptorを漏らさないこと（Linux /proc条件付き）。
+
+ただし、現行 `validateOcrSchema` はDBをopenする `openReadOnlyDatabase` と結合している。OCR-SEARCHではcaller-owned DatabaseSyncを検査する純粋な `assertSearchDatabaseCompatible(db)` に分離し、open / close ownershipはconsumer側に残す。したがって、fd cleanup testはconsumerのopen helper側に残すか、package validatorの責務でないことを確認して除外する。trigger validation / `validateOcrWriteTriggers` は移さない。
+
+## 5. MCP境界テストの扱い
 
 `src/mcp/tools.test.ts` の検索関連テストはMCP側に残す。主な対象:
 - MCP入力schemaがliteral queryとnested ASTを受け付けること。
@@ -84,7 +99,7 @@ Fake Worker testsはタイミング制御と状態遷移を検証する。実Wor
 
 Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI回帰テストに混ぜない。MCP consumer integration testではOCR-SEARCH公開APIを実際に呼ぶ構成へ置き換える。
 
-## 5. 抽出前後の比較方法
+## 6. 抽出前後の比較方法
 
 ### 必須比較
 同一SQLite fixture DB（同一行・同一ID・同一FTS index）と同一query/optionsを使い、抽出前のOCR-MCP-SERVER基準実装と抽出後のOCR-SEARCHで以下を比較する。
@@ -105,7 +120,7 @@ Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI�
 - Japanese index metadataのindexed_atはfixture固定値を使う。
 - extensionがない環境ではnative integrationをskipできるが、CI / release acceptanceではextension付きの実行を必須にする。
 
-## 6. まだ基準化されていない領域
+## 7. まだ基準化されていない領域
 
 現時点で確認した上記テストファイルだけでは、以下のbuilder・package distribution acceptanceを十分に保証できない。別途追加する。
 - Japanese index builderのsnapshot consistency、staging file cleanup、rename failure時の旧index保持。
@@ -119,7 +134,7 @@ Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI�
 
 これらはOCR-MCP-SERVERの既存検索テストから移植したと主張せず、OCR-SEARCHの新規テストとして追加する。
 
-## 7. 実装時のルール
+## 8. 実装時のルール
 
 1. このbaselineはsource commit `d9f23b0a7870ea267670bcf27208942172e27563` に固定する。
 2. 抽出と同時に検索 semantics、snippet、ranking、pagination、timeoutを改善しない。
