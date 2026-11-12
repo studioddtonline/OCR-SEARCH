@@ -533,6 +533,8 @@ OCR-SEARCH integration tests は同期済み DB で期待検索結果を確認�
 
 初回は共通 fixture package を作らない。OCR-SEARCH test support に最小 fixture を置き、book-ocr conformance test は book-ocr migration から DB を作って validator を呼ぶ。共有期待値が必要になってから versioned JSON fixtures を検討。
 
+抽出前の具体的な回帰基準、テストファイル単位の移植区分、既存10件の日本語Worker lifecycle tests、標準検索の期待値、未カバー領域は [docs/regression-baseline.md](docs/regression-baseline.md) に記録する。基準ソースは OCR-MCP-SERVER commit `d9f23b0a7870ea267670bcf27208942172e27563` に固定し、抽出前後比較が完了するまでbaselineを変更しない。
+
 ## 10. package 構成案
 
 ```text
@@ -628,8 +630,8 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 ## 13. 抽出実行計画
 
 ### Phase 0 — source freeze / baseline
-1. OCR-MCP-SERVER main commit SHA を記録。
-2. 現行標準・日本語検索 tests を確認。
+1. OCR-MCP-SERVER main commit SHA を記録（baseline: `d9f23b0a7870ea267670bcf27208942172e27563`）。
+2. 現行標準・日本語検索 tests を確認し、[docs/regression-baseline.md](docs/regression-baseline.md) にtest inventoryと移植区分を記録。
 3. 検索仕様表と test inventory を確定。
 4. BOOK-OCR の `src/search/` と CLI 検索 command / flags / output の利用状況を棚卸しする。旧検索実装は移行後に削除し、旧検索 semantics は維持対象にしない。
 5. 抽出前の検索回帰 fixture と期待結果を確定する。
@@ -785,6 +787,9 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - src/config/sections/japanese-search.ts
 - src/features/ocr/repository.test.ts
 - src/features/japanese-search/repository.test.ts
+- test/support/ocr-fixture.ts
+- test/support/sqlite-vaporetto-extension.ts
+- src/mcp/tools.test.ts（MCP境界テストの区分確認）
 - src/features/ocr/sqlite.test.ts
 
 この文書は現行実装から抽出計画を作る設計案であり、OCR-SEARCH package の実装・ビルド・テストを完了したことを意味しない。
