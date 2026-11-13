@@ -838,6 +838,7 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - `search` と `search-japanese` CLIを追加。日本語Workerは明示サブコマンドの場合だけ起動し、初期化中表示を行う。
 - Worker / reviewed runtime assetsをbuild後にdistへコピーする仕組みを追加。
 - 日本語Worker lifecycleの基準10テストを固定sourceから移植。API / 実Worker integration testも追加。
+- 日本語検索はsnapshot indexからcandidate IDs / BM25順位を取得し、本文・label・fileName・reviewedはsource DBからhydrate。削除済みcandidateのskip後もpaginationを継続する。
 
 未完了:
 - 日本語検索結果のsource DB hydrateは実装済み。残作業はOCR本文変更後のcandidate membershipがsnapshot依存である点を運用上明示すること。
@@ -857,3 +858,5 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - GitHub Actions run #30: `12d5790c2242d8a5909d25e24245ac468f4e24a3` — Node.js 22.16.0 / 24.x双方でtypecheck、38 tests、build、npm pack、temporary install、package root import、CLI help smoke testがすべて成功。日本語Worker source equivalence testとpublic JapaneseSearchOptionsの分離を含む最新状態を検証。
 
 - GitHub Actions run #39: `1315de4b2e58b91ce854845497334be92ac9d5a6` — lockfileを使う `npm ci`、Node.js 22.16.0 / 24.xのtypecheck、38 tests、build、npm pack、temporary install、package root import、CLI help smoke testがすべて成功。close後のJapanese APIも安定した `SearchUnavailableError` を返す。
+
+- GitHub Actions run #50: `6adee68ca695440c7b1f4b4266e376453358f53b` — source DB hydration / deleted-candidate paginationを含む39 testsがNode.js 22.16.0 / 24.x双方で成功。npm ci、build、npm pack、temporary install、API import、CLI smoke testも成功。
