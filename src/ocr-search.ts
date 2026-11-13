@@ -72,6 +72,9 @@ export class OcrSearch {
   }
 
   searchJapanese(input: JapaneseSearchInput, signal?: AbortSignal): Promise<JapaneseSearchResult> {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return Promise.reject(new SearchQueryValidationError("Japanese search request must be an object."));
+    }
     if (this.closed) return Promise.reject(new Error("Search instance is closed."));
     if (!this.japanese) return Promise.reject(new SearchUnavailableError("Japanese search is not enabled."));
     if (typeof input.query !== "string" || !input.query.trim()) {
