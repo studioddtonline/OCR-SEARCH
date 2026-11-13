@@ -25,11 +25,13 @@ export type JapaneseSearchResult = Awaited<ReturnType<JapaneseSearchRepository["
 export class OcrSearch {
   private readonly standard: StandardSearchRepository;
   private readonly japanese: JapaneseSearchRepository | undefined;
+  private readonly japaneseMaxLimit: number;
   private closed = false;
 
   constructor(options: OcrSearchOptions) {
     assertSearchDatabaseCompatible(options.database);
     this.standard = new StandardSearchRepository(options.database, options.standard);
+    this.japaneseMaxLimit = options.japanese?.maxLimit ?? 20;
     if (options.japanese) this.japanese = JapaneseSearchRepository.open(options.japanese);
   }
 
@@ -79,10 +81,6 @@ export class OcrSearch {
     this.japanese?.close();
   }
 
-  private get japaneseMaxLimit(): number {
-    // The repository validates its worker requests against the configured maxLimit.
-    return (this.japanese as unknown as { options?: { maxLimit?: number } }).options?.maxLimit ?? 20;
-  }
 }
 
 export function createOcrSearch(options: OcrSearchOptions): OcrSearch {
