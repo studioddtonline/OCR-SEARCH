@@ -54,6 +54,8 @@ try {
 }
 ```
 
+標準検索APIはPromiseを返すが、SQLite query自体は呼び出し元thread上で同期実行される。Promise化はnon-blocking化を意味しない。AbortSignalは処理開始前のcancelのみを保証し、実行中の同期SQLite queryを中断しない。
+
 ## 日本語検索
 
 日本語検索は明示的に有効化した場合だけ Worker を起動する。Vaporetto model の初期化には時間とメモリを要する。
