@@ -824,3 +824,27 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - src/features/ocr/sqlite.test.ts
 
 この文書は現行実装から抽出計画を作る設計案であり、OCR-SEARCH package の実装・ビルド・テストを完了したことを意味しない。
+
+
+## 12. 実装進捗（2026-11-13）
+
+この設計書は引き続き抽出の仕様基準として扱う。実装は次の段階まで進んだ。
+
+- 標準検索 parser / compiler / repository と既存8 scenario fixture testを実装。
+- 統合API `OcrSearch` / `createOcrSearch` を追加。標準検索は呼び出し側の `DatabaseSync` を使用し、close ownershipを呼び出し側に残す。
+- 日本語検索のWorker、FIFO queue、Abort、queue / execution / startup timeout、bounded restartを固定baseline commitから移植。
+- 日本語 index schema v2 builderを追加。config fileを読まず、database / index / extension pathを明示引数で受け取る。staging fileの検証後にrenameし、失敗時は既存indexを保持する。
+- Vaporetto installer / checkerを追加。upstream release versionとSHA-256を固定。
+- `search` と `search-japanese` CLIを追加。日本語Workerは明示サブコマンドの場合だけ起動し、初期化中表示を行う。
+- Worker / reviewed runtime assetsをbuild後にdistへコピーする仕組みを追加。
+- 日本語Worker lifecycleの基準10テストを固定sourceから移植。API / 実Worker integration testも追加。
+
+未完了:
+- baseline実装との自動比較 harness。
+- index置換後の旧connection / 新connectionの挙動を固定するtest。
+- 日本語index snapshotのsource DB hydrate方針（indexedAtは現行結果に含むが、本文・reviewedはsnapshotのまま）。
+- CLI追加ケース、builder failure / staging cleanupの詳細テスト。
+- npm lockfile、LICENSE / NOTICE、CI、npm pack後のtarball smoke test。
+- Node.js 22.16.0 exact floorの検証。
+
+ChatGPT側では `npm install` / `npm run typecheck` / `npm test` / `npm run build` を実行していない。これらの成否は利用者のローカル実行ログで確定する。
