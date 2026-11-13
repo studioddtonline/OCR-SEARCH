@@ -201,3 +201,20 @@ MCP側では、公開OCR-SEARCH APIへのadapter integrationを残す。BOOK-OCR
 - [ ] npm pack後のtarball smoke testが実行される。
 - [ ] OCR-SEARCHのテスト群がMCP / Web UIの依存なしで実行できる。
 
+
+
+## 9. 現在の実装状況（2026-11-13）
+
+上記の計画に対し、OCR-SEARCH側には次の実ファイルを追加済み。
+
+- 標準検索: `src/query.ts`、`src/standard-search.ts`、`test/query.test.ts`、`test/standard-search.test.ts`
+- DB contract: `src/testing.ts`、`test/database-contract.test.ts`
+- 統合API / CLI: `src/ocr-search.ts`、`src/cli.ts`、`test/ocr-search-api.test.ts`
+- 日本語Worker: `src/japanese/repository.ts`、`src/japanese/worker.mjs`、`src/worker-host.ts`
+- 日本語index builder / native utilities: `scripts/build-japanese-index.mjs`、`scripts/install-sqlite-vaporetto.sh`、`scripts/check-sqlite-vaporetto.mjs`
+- Worker lifecycleの基準10テスト: `test/japanese-search-repository.test.ts`
+- build時runtime assets copy: `scripts/copy-runtime-assets.mjs`
+
+日本語Worker lifecycleの10 test blockは固定baselineから移植済み。実extension integration testはextensionが存在しない環境ではskipされるため、CI / release acceptanceでskip不可にする設定は未実装。標準検索のbaseline equivalence harness、builder failure tests、index replacement connection test、distribution acceptanceも未完了。
+
+**重要:** これらはGitHub上にコードを追加したという状態であり、build / typecheck / testが成功したという意味ではない。ローカル実行による確認が必要。
