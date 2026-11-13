@@ -459,3 +459,60 @@ test("Worker termination failures are logged rather than silently discarded", as
     removeTempDir(dir);
   }
 });
+
+test("Japanese BM25 ranking uses term frequency and source ID as a stable tie-break", {
+  skip: !existsSync(extensionPath),
+}, async () => {
+  const dir = createTempDir("japanese-search-bm25-order-");
+  const indexPath = join(dir, "index.sqlite");
+  const builder = new DatabaseSync(indexPath, { allowExtension: true });
+  loadVaporettoExtension(builder, extensionPath);
+  builder.enableLoadExtension(false);
+  builder.exec(`
+    CREATE TABLE japanese_search_meta (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+      schema_version INTEGER NOT NULL,
+      tokenizer TEXT NOT NULL,
+      indexed_at TEXT NOT NULL,
+      source_record_count INTEGER NOT NULL,
+      source_max_id INTEGER NOT NULL
+    );
+    INSERT INTO japanese_search_meta VALUES (1, 2, 'vaporetto-pretokenized-unicode61', '2026-01-01T00:00:00.000Z', 3, 20);
+    CREATE TABLE japanese_documents (
+      source_id INTEGER PRIMARY KEY, file_path TEXT, file_name TEXT, reviewed INTEGER, ocr_text TEXT NOT NULL
+    );
+    CREATE VIRTUAL TABLE japanese_fts USING fts5(search_text, content='', tokenize='unicode61');
+  `);
+  const documents = [
+    { id: 20, text: "東京 大阪 京都" },
+    { id: 9, text: "東京 東京 京都" },
+    { id: 5, text: "東京 東京 京都" },
+  ];
+  const insertDocument = builder.prepare("INSERT INTO japanese_documents VALUES (?, ?, ?, ?, ?)");
+  const tokenize = builder.prepare("SELECT vaporetto_split(?, ' ') AS tokens");
+  const insertFts = builder.prepare("INSERT INTO japanese_fts(rowid, search_text) VALUES (?, ?)");
+  for (const document of documents) {
+    insertDocument.run(document.id, "BM25", `${document.id}.webp`, 1, document.text);
+    const tokens = searchableTokens(tokenize.get(document.text)?.tokens);
+    insertFts.run(document.id, tokens.join(" "));
+  }
+  builder.close();
+
+  const repo = JapaneseSearchRepository.open({
+    indexPath,
+    extensionPath,
+    busyTimeoutMs: 500,
+    maxLimit: 20,
+  });
+  try {
+    const result = await repo.search({ query: "東京", mode: "any", limit: 10, offset: 0 }) as {
+      results: Array<{ id: number; score: number }>;
+    };
+    assert.deepEqual(result.results.map((row) => row.id), [5, 9, 20]);
+    assert.equal(result.results[0]?.score, result.results[1]?.score);
+    assert.ok((result.results[0]?.score ?? 0) < (result.results[2]?.score ?? 0));
+  } finally {
+    repo.close();
+    removeTempDir(dir);
+  }
+});
