@@ -6,6 +6,7 @@ import test from "node:test";
 import { createStandardSearchFixture } from "./support/standard-search-fixture.mjs";
 import { createJapaneseSearchFixtureIndex } from "./support/japanese-search-fixture.mjs";
 import { OcrSearch } from "../src/ocr-search.js";
+import { SearchUnavailableError } from "../src/errors.js";
 
 test("OcrSearch.close does not close the caller-owned source database", async () => {
   const database = createStandardSearchFixture("short-literal-substring");
@@ -16,6 +17,7 @@ test("OcrSearch.close does not close the caller-owned source database", async ()
     search.close();
     assert.doesNotThrow(() => database.prepare("SELECT 1").get());
     await assert.rejects(search.search({ query: "東京" }), /closed/);
+    await assert.rejects(search.searchJapanese({ query: "東京" }), (error) => error instanceof SearchUnavailableError && error.code === "SEARCH_UNAVAILABLE");
   } finally {
     search.close();
     database.close();
