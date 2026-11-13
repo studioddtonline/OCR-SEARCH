@@ -843,7 +843,7 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - 日本語検索のbaseline完全一致比較（queryTokens / score / snippet / pagination）の拡張。BM25の複数文書rank / ID tie-breakテストと、index置換後の旧・新connection挙動テストは追加済み。
 - 日本語index snapshotのsource DB hydrate方針（indexedAtは現行結果に含むが、本文・reviewedはsnapshotのまま）。
 - CLI追加ケース、builderのstaging cleanup / rename failureの詳細テスト（source validation failureで既存indexを保持するテストは追加済み）。
-- npm lockfile、OCR-SEARCH自身のLICENSE確定、npm pack tarballのinstall / import smoke test（CI workflowとpack内runtime asset検査は追加済み、初回CI実行待ち。第三者NOTICEは追加済み）。
+- npm lockfile、OCR-SEARCH自身のLICENSE確定。CI run #9でnpm pack tarballのinstall / API import / CLI smoke testまで成功。第三者NOTICEは追加済み。
 - Node.js 22.16.0 exact floorはGitHub Actionsで検証済み。
 
 ChatGPT側では `npm install` / `npm run typecheck` / `npm test` / `npm run build` を実行していない。これらの成否は利用者のローカル実行ログで確定する。
@@ -853,4 +853,6 @@ ChatGPT側では `npm install` / `npm run typecheck` / `npm test` / `npm run bui
 
 - GitHub Actions run #7: `6bc6947729fedab2fadfc9040485c26543589739` — Node.js 22.16.0 / 24.x の双方で typecheck、37 tests、build、pack runtime asset check が成功。
 - Node.js 22.16.0 exact floorはこのrunで初めて実行確認した。
-- この実行はsource / testの現行実装を検証したもの。後続のtarball install / package import / CLI smoke testを追加したworkflowは別runで確認中。
+- この実行はsource / testの現行実装を検証したもの。後続のtarball install / package import / CLI smoke testもrun #9で成功。
+
+- GitHub Actions run #9: `53f78753486730ac3cc688a7b73c7b9008672202` — Node.js 22.16.0 / 24.x双方でtypecheck、37 tests、build、npm pack、temporary install、package root import、CLI help smoke testが成功。
