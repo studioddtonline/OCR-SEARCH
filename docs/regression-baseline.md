@@ -173,7 +173,7 @@ fixture dataとbuilderは準備したが、package APIに対するexecutable reg
 
 固定baselineの日本語Worker test file（10 test block）は `test/japanese-search-repository.test.ts` に移植済み。元のFake Workerによるqueue / cancel / timeout / restart testsを維持し、package内の `JapaneseSearchRepository` を直接検証する。標準検索は `test/standard-search.test.ts` と `test/query.test.ts`、DB contractは `test/database-contract.test.ts`、統合APIと実Workerは `test/ocr-search-api.test.ts` に追加した。
 
-移植コードは未実行である。標準検索の同一fixture完全一致比較は `test/baseline-equivalence.test.ts` に追加済み。日本語BM25の複数文書rank / ID tie-breakテストとindex replacement connection testは追加済み。日本語検索のsource実装との完全一致比較、staging / rename failureの詳細、tarballのruntime asset一覧検査はCI workflowに追加済みだが、tarball install / import smoke testは未完了。初回CI実行結果は未確認。
+移植コードは未実行である。標準検索の同一fixture完全一致比較は `test/baseline-equivalence.test.ts` に追加済み。日本語Worker本体も `test/japanese-worker-equivalence.test.ts` で固定sourceとpackage-local import差分以外のbyte-for-byte一致を検証する。日本語BM25の複数文書rank / ID tie-breakテストとindex replacement connection testは追加済み。日本語検索のsource実装との完全一致比較、staging / rename failureの詳細、tarballのruntime asset一覧検査はCI workflowに追加済みだが、tarball install / import smoke testは未完了。初回CI実行結果は未確認。
 
 
 ## 11. CI確認記録
