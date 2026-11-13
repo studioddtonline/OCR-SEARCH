@@ -34,9 +34,9 @@ function createDb(scenario: FixtureCase): DatabaseSync {
 for (const scenario of baseline.cases) {
   test(`standard search baseline: ${scenario.id}`, async () => {
     const db = createDb(scenario);
-    const repository = new StandardSearchRepository(db, { defaultLimit: 20, maxLimit: 50, snippetLength: 160 });
     try {
       for (const query of scenario.queries) {
+        const repository = new StandardSearchRepository(db, { defaultLimit: 20, maxLimit: 50, snippetLength: query.snippetLength ?? 160 });
         const result = await repository.search({
           query: query.query,
           ...(query.label !== undefined ? { label: query.label } : {}),
@@ -49,12 +49,14 @@ for (const scenario of baseline.cases) {
         if (Object.hasOwn(query, "nextAfterId")) assert.equal(result.nextAfterId, query.nextAfterId);
         if (query.snippetMustContain) assert.ok(result.results[0]?.snippet.includes(query.snippetMustContain));
         if (query.snippetMustNotEqual) assert.notEqual(result.results[0]?.snippet, query.snippetMustNotEqual);
+        repository.close();
       }
       if (scenario.id === "surrogate-pair-boundaries") {
+        const repository = new StandardSearchRepository(db, { snippetLength: 160 });
         assert.ok((await repository.search({ query: "a", limit: 5 })).results[0]?.snippet.includes("𠮷"));
+        repository.close();
       }
     } finally {
-      repository.close();
       // The package must not close the caller-owned DatabaseSync.
       assert.equal(db.prepare("SELECT 1 AS ok").get()?.ok, 1);
       db.close();
