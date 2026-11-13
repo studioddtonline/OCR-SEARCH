@@ -87,7 +87,7 @@ export class OcrSearch {
       return Promise.reject(new SearchQueryValidationError("Japanese search mode must be any or all."));
     }
     const maxLimit = this.japaneseMaxLimit;
-    const limit = input.limit ?? 20;
+    const limit = input.limit ?? Math.min(20, maxLimit);
     const offset = input.offset ?? 0;
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > maxLimit) {
       return Promise.reject(new SearchQueryValidationError(`Japanese search limit must be an integer from 1 to ${maxLimit}.`));
