@@ -840,10 +840,10 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - 日本語Worker lifecycleの基準10テストを固定sourceから移植。API / 実Worker integration testも追加。
 
 未完了:
-- baseline実装との自動比較 harness。
+- 日本語検索のbaseline完全一致比較（queryTokens / score / snippet / pagination）の拡張。標準検索の同一fixture完全一致harnessは追加済み。
 - index置換後の旧connection / 新connectionの挙動を固定するtest。
 - 日本語index snapshotのsource DB hydrate方針（indexedAtは現行結果に含むが、本文・reviewedはsnapshotのまま）。
-- CLI追加ケース、builder failure / staging cleanupの詳細テスト。
+- CLI追加ケース、builderのstaging cleanup / rename failureの詳細テスト（source validation failureで既存indexを保持するテストは追加済み）。
 - npm lockfile、LICENSE / NOTICE、CI、npm pack後のtarball smoke test。
 - Node.js 22.16.0 exact floorの検証。
 
