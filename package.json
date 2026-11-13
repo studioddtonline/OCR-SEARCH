@@ -30,7 +30,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-runtime-assets.mjs",
     "prepack": "npm run build",
-    "test": "tsx --test \"test/**/*.test.ts\""
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "japanese-index": "node scripts/build-japanese-index.mjs",
+    "japanese-extension:install": "bash scripts/install-sqlite-vaporetto.sh",
+    "japanese-extension:check": "node scripts/check-sqlite-vaporetto.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
