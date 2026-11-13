@@ -6,7 +6,7 @@ function readArguments(argv: string[]) {
   const [command, ...rest] = argv;
   const options: Record<string, string> = {};
   for (let index = 0; index < rest.length; index += 1) {
-    const item = rest[index];
+    const item = rest[index]!;
     if (!item.startsWith("--")) throw new Error(`Unexpected argument: ${item}`);
     const separator = item.indexOf("=");
     if (separator >= 0) options[item.slice(2, separator)] = item.slice(separator + 1);
