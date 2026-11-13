@@ -26,8 +26,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Install development dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install locked development dependencies
+        run: npm ci --no-audit --no-fund
       - name: Install pinned sqlite-vaporetto release
         run: npm run japanese-extension:install
       - name: Verify native extension
