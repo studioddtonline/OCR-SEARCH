@@ -21,7 +21,9 @@
   },
   "files": [
     "dist",
+    "scripts",
     "README.md",
+    "DESIGN.md",
     "LICENSE",
     "NOTICE"
   ],
@@ -39,5 +41,8 @@
     "@types/node": "^22.0.0",
     "typescript": "^6.0.0",
     "tsx": "^4.20.0"
+  },
+  "bin": {
+    "ocr-search": "./dist/cli.js"
   }
 }
