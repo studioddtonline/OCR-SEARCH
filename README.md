@@ -18,17 +18,20 @@
 - Vaporetto 日本語検索 Worker、FIFO queue、cancel、queue/execution/startup timeout、bounded restart
 - 日本語 index schema v2 builder（明示パス指定、staging DB、検証後 rename）
 - sqlite-vaporetto installer / checker（upstream release SHA-256 検証）
-- 標準検索・API・日本語 Worker integration test の初版
+- 標準検索のsource baseline完全一致比較、query parser / DB contract / API tests
+- 日本語 Worker source equivalence、Worker lifecycle、BM25 ranking、index replacement tests
 - CLI の標準検索と明示 opt-in の日本語検索
+- package-lock.json（lockfileVersion 3）
+- GitHub Actions: Node.js 22.16.0 / 24.x、native extension、typecheck、38 tests、build、npm pack / temporary install / API import / CLI smoke test
 
-**未完了:** source implementation との完全な baseline equivalence harness、Worker lifecycle 全ケースの回帰テスト移植、CLI の追加検証、package lockfile、LICENSE / NOTICE の確定、CI / npm pack tarball 検証。現時点で build / test 実行済みとはしていない。
+**未完了:** 日本語検索結果のsource DB hydrate（snapshot freshness改善）、package licenseの選定、OCR-MCP-SERVER / BOOK-OCR Web UI consumer接続。licenseは選定中のため `private: true` を維持する。
 
 ## 開発環境
 
 Node.js `>=22.16.0`（GitHub Actionsで22.16.0 / 24.xを検証済み）。
 
 ```sh
-npm install
+npm ci
 npm run typecheck
 npm test
 npm run build
@@ -93,4 +96,4 @@ CLI は consumer 固有 config を暗黙に読み込まない。DB、index、ext
 
 ## npm / GitHub Release
 
-package には consumer install 時に build する `prepare` script を置かない。配布 tarball には build 済み `dist` を含める。GitHub Release tarball を dependency に指定する場合、npm 12 では consumer 側 `.npmrc` に `allow-remote=root`（環境により `all`）が必要になる場合がある。lockfile と tarball の integrity 検証は release 前に確認する。
+package には consumer install 時に build する `prepare` script を置かない。配布 tarball には build 済み `dist` を含める。GitHub Release tarball を dependency に指定する場合、npm 12 では consumer 側 `.npmrc` に `allow-remote=root`（環境により `all`）が必要になる場合がある。lockfile の依存integrityは記録済み。npm pack後のtarball install / API import / CLI起動はCIで検証済み。
