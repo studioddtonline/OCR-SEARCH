@@ -346,13 +346,14 @@ export class JapaneseSearchRepository {
       this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search worker failed; retry the request."));
       this.active = undefined;
     }
-    this.restartWorker("worker failure", generation, countsTowardStartupRetryBudget);
+    this.restartWorker("worker failure", generation, countsTowardStartupRetryBudget, false);
   }
 
   private restartWorker(
     reason: string,
     workerToTerminate?: WorkerGeneration<WorkerMetadata>,
     countsTowardStartupRetryBudget = false,
+    logTerminationFailure = true,
   ): void {
     if (this.closed) return;
     const lifecycle = this.state.lifecycle;
@@ -365,7 +366,7 @@ export class JapaneseSearchRepository {
       const pending = startupFailurePending || countsTowardStartupRetryBudget;
       if (oldWorker) {
         const termination = this.workerHost.terminate(oldWorker).catch((error) => {
-          this.options.log?.("[japanese-search] worker termination failed:", error);
+          if (logTerminationFailure) this.options.log?.("[japanese-search] worker termination failed:", error);
           return 0;
         });
         const terminating: WorkerLifecycle = {
