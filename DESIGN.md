@@ -844,6 +844,13 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - 日本語index snapshotのsource DB hydrate方針（indexedAtは現行結果に含むが、本文・reviewedはsnapshotのまま）。
 - CLI追加ケース、builderのstaging cleanup / rename failureの詳細テスト（source validation failureで既存indexを保持するテストは追加済み）。
 - npm lockfile、OCR-SEARCH自身のLICENSE確定、npm pack tarballのinstall / import smoke test（CI workflowとpack内runtime asset検査は追加済み、初回CI実行待ち。第三者NOTICEは追加済み）。
-- Node.js 22.16.0 exact floorの検証。
+- Node.js 22.16.0 exact floorはGitHub Actionsで検証済み。
 
 ChatGPT側では `npm install` / `npm run typecheck` / `npm test` / `npm run build` を実行していない。これらの成否は利用者のローカル実行ログで確定する。
+
+
+### CI実行記録
+
+- GitHub Actions run #7: `6bc6947729fedab2fadfc9040485c26543589739` — Node.js 22.16.0 / 24.x の双方で typecheck、37 tests、build、pack runtime asset check が成功。
+- Node.js 22.16.0 exact floorはこのrunで初めて実行確認した。
+- この実行はsource / testの現行実装を検証したもの。後続のtarball install / package import / CLI smoke testを追加したworkflowは別runで確認中。
