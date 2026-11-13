@@ -385,7 +385,7 @@ export class JapaneseSearchRepository {
       }
       return;
     }
-    this.scheduleWorkerRestart(reason, oldWorker, countsTowardStartupRetryBudget);
+    this.scheduleWorkerRestart(reason, oldWorker, countsTowardStartupRetryBudget, logTerminationFailure);
   }
 
   /** Restart only while callers are waiting; only failures before ready consume the retry budget. */
@@ -393,6 +393,7 @@ export class JapaneseSearchRepository {
     reason: string,
     workerToTerminate?: WorkerGeneration<WorkerMetadata>,
     countsTowardStartupRetryBudget = false,
+    logTerminationFailure = true,
   ): void {
     const current = this.state.lifecycle;
     if (this.closed || current.kind === "dead" || current.kind === "closed" ||
@@ -429,7 +430,7 @@ export class JapaneseSearchRepository {
     // against stale completion callbacks.
     const termination = workerToTerminate
       ? this.workerHost.terminate(workerToTerminate).catch((error) => {
-        this.options.log?.("[japanese-search] worker termination failed:", error);
+        if (logTerminationFailure) this.options.log?.("[japanese-search] worker termination failed:", error);
         return 0;
       })
       : Promise.resolve(0);
