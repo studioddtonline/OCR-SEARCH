@@ -33,6 +33,7 @@ export interface WorkerHostOptions<TMessage, TReady> {
    * (for example, to prevent a replacement Worker from overlapping the failed one).
    */
   onFailure: (generation: WorkerGeneration<TReady>, failure: WorkerHostFailure) => void;
+  onTerminationError?: (generation: WorkerGeneration<TReady>, error: Error) => void;
 }
 
 type ReadyState = "pending" | "resolved" | "rejected";
@@ -184,7 +185,10 @@ export class WorkerHost<TMessage, TReady> {
     // Failure detaches the generation and owns its cleanup. Attach a rejection
     // handler immediately; feature callbacks may still await the same Promise.
     const termination = this.terminate(state.generation);
-    void termination.catch(() => undefined);
+    void termination.catch((error: unknown) => {
+      if (error instanceof Error) this.options.onTerminationError?.(state.generation, error);
+      else this.options.onTerminationError?.(state.generation, new Error(String(error)));
+    });
 
     this.options.onFailure(state.generation, failure);
   }
