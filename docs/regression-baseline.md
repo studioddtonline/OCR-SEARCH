@@ -178,4 +178,4 @@ fixture dataとbuilderは準備したが、package APIに対するexecutable reg
 
 ## 11. CI確認記録
 
-GitHub Actions run #7（commit `6bc6947729fedab2fadfc9040485c26543589739`）でNode.js 22.16.0 / 24.x双方のtypecheckと37 testsが成功した。日本語native extensionをinstallしてから実行しており、Japanese Worker integration / BM25 / builder testをskipしていない。buildとnpm pack runtime asset listingも成功。後続のtarball install / import / CLI smoke testは追加後のworkflow runで確認中。
+GitHub Actions run #7（commit `6bc6947729fedab2fadfc9040485c26543589739`）でNode.js 22.16.0 / 24.x双方のtypecheckと37 testsが成功した。日本語native extensionをinstallしてから実行しており、Japanese Worker integration / BM25 / builder testをskipしていない。buildとnpm pack runtime asset listingも成功。後続のtarball install / import / CLI smoke testもGitHub Actions run #9で成功。
