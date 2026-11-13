@@ -18,6 +18,22 @@
 
 ## 2. 標準検索
 
+### package boundaryの新規テスト（既存8ケースとは別枠）
+
+現行repositoryはlimit / offset / afterIdの範囲検証を担わず、MCP Zod boundaryがlimit等を検証している。OCR-SEARCHの独立APIではpackageが検証と既定値適用を所有する。この責務移動は抽出前の8基準ケースに含めず、新規APIテストとして分離する。
+
+- limit省略時にdefaultLimit（20）を適用。
+- limitは正のsafe integer、maxLimit以下。maxLimit超過・0・負数・小数・NaN・Infinityを拒否。
+- offsetは0〜1,000,000の整数。範囲外・小数を拒否。
+- afterIdは正のsafe integer。0・負数・小数・unsafe integerを拒否。
+- afterIdとoffset>0の併用を拒否し、offset=0との併用は許可。
+- 不正値はclamp / roundせずSearchQueryValidationErrorで拒否。
+- 日本語検索のlimit / offsetも同様にpackage boundaryで検証し、mode省略時はany。
+
+MCP Zod boundaryの既存テストは削除せず、MCP adapterがpackageへ渡す前の浅い入力検証と、package側の最終契約を別々に検証する。
+
+標準検索AbortSignalは現行実装に存在しない新規API。既にabort済みのsignalではDB queryを開始せずSearchCancelledErrorを返すことを新規テストする。同期SQLite query開始後の中断保証はテストしない。
+
 テストファイル案: `test/standard-search.test.ts`
 
 | 基準ケース | テスト内容 | Fixture |
@@ -89,7 +105,7 @@ validatorは渡されたDatabaseSyncをcloseしない。呼び出し後も同じ
 - index metadataのrecord count、schema/tokenizer情報がfixtureと一致。
 - any / all の結果件数。
 - reviewed=true / false filter。
-- BM25順序と同点時ID tie-break。複数documentの固定fixtureを追加する際は、期待順位をbaseline実装で取得する。
+- BM25 scoreは同一実行環境・同一fixtureのbaselineと完全一致。複数document fixtureを追加し、順位と同点時source_id tie-breakを検証する。環境をまたぐscore絶対値の許容幅は定義しない。
 
 extensionがない開発環境ではskip可能。ただしCI / release acceptanceではskip不可。Vaporettoのtoken列は実extensionから生成し、推測した固定token列を使わない。
 
@@ -129,7 +145,32 @@ Fake Workerは時刻を固定・注入する必要が出た場合を除き、現
 
 絶対パス、日時、native error message、Worker request ID、ログ文字列は比較対象から除外する。BM25 scoreは同一SQLite / extension / fixture条件で比較し、環境差が確認された場合のみ順位一致を必須としてscore許容幅を実測で決める。
 
-## 6. テストの責務境界
+## 6. 追加テスト（Claudeレビュー反映）
+
+### Japanese snapshot freshness contract
+
+- Japanese indexの本文・reviewedはbuild時点のsnapshotであり、元DB更新後に再indexするまで古い可能性があることをテスト・文書で明示。
+- public Japanese resultに `indexedAt` が含まれることを検証する。
+- source DB hydrateは現時点で未実装の後続設計。採用時はconsumerがIDでsource_imagesから本文・reviewedを再取得し、検索順位・candidate IDsはindex snapshotを使うintegration testを追加する。
+- index file rename後に古いconnectionが旧indexを読み続け、新しいconnectionが置換後indexを読むことを実測するtestを追加する。process restartが必要な運用を再確認する。
+
+### Strict trigram test helper
+
+- production `assertSearchDatabaseCompatible` は現行互換のままtokenizer種別を判定しない。
+- test-only strict helperはsqlite_master.sqlからimages_ftsの `tokenize='trigram'` を検証する。
+- unicode61のFTS5 tableはproduction validatorを通る可能性がある一方、strict helperでは拒否されることをテストする。
+- trigger SQL / trigger synchronizationはpackage testに移さない。book-ocr側の契約テストに残す。
+
+### CLI / distribution
+
+- 日本語検索は `--japanese` 等の明示optionがない限りWorkerを起動しない。
+- 日本語検索起動中に初期化中であることをstderr等に表示する。
+- Worker/model初期化が1回のCLI invocationにつき1回であることを確認する（約5.4秒 / 325MBは実測参考値であり固定test thresholdにしない）。
+- package.jsonに `prepare` scriptがないこと。buildはCI / prepackで完了し、tarballにdistが含まれる。
+- GitHub Release tarball導入手順にnpm 12 `allow-remote`設定を明記。
+- lockfile integrityがtarball差し替えを検出することをdistribution smoke testで確認。
+
+## 7. テストの責務境界
 
 OCR-SEARCHに含めないもの:
 
@@ -141,10 +182,17 @@ OCR-SEARCHに含めないもの:
 
 MCP側では、公開OCR-SEARCH APIへのadapter integrationを残す。BOOK-OCR本体は検索consumerではなく、検索テストやCLI検索テストを持たない。将来のBOOK-OCR Web UIは独立consumerとして、別リポジトリでAPI integration testを持つ。
 
-## 7. 完了判定
+## 8. 完了判定
 
 - [ ] 標準検索fixture 8ケースがすべて実行可能なtestで消費される。
 - [ ] parser/compilerの境界・安全性テストが実行可能。
+- [ ] package boundaryのlimit / offset / afterId / default validationテストが実行可能。
+- [ ] standard AbortSignalの開始前キャンセルテストが実行可能。
+- [ ] strict trigram test helperがunicode61 DBを拒否する。
+- [ ] Japanese public resultにindexedAtが含まれる。
+- [ ] BM25は同一環境でscore完全一致、複数文書で順位 / tie-breakを検証する。
+- [ ] CLI日本語検索は明示opt-inと初期化待機表示を持つ。
+- [ ] tarballにprepare scriptがなく、npm 12 allow-remote注意が導入文書にある。
 - [ ] DB contract validatorのpositive / negative casesが実行可能。
 - [ ] 日本語実extension integrationがCIで実行される。
 - [ ] Worker lifecycle 10ケースが実行可能。
