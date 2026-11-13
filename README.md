@@ -26,7 +26,7 @@
 Node.js `>=22.16.0`。
 
 ```sh
-npm ci
+npm install
 npm run typecheck
 npm test
 npm run build
