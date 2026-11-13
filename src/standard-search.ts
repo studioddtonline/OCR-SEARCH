@@ -39,13 +39,16 @@ function nonNegativeSafeInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 function validateOptions(options: StandardSearchOptions): Required<StandardSearchOptions> {
-  const defaultLimit = options.defaultLimit ?? 20;
   const maxLimit = options.maxLimit ?? 50;
+  const defaultLimit = options.defaultLimit ?? Math.min(20, maxLimit);
   const snippetLength = options.snippetLength ?? 160;
-  if (!positiveSafeInteger(defaultLimit) || !positiveSafeInteger(maxLimit) || maxLimit > 100 || defaultLimit > maxLimit) {
+  if (!positiveSafeInteger(maxLimit) || maxLimit > 100 ||
+      !positiveSafeInteger(defaultLimit) || defaultLimit > 50 || defaultLimit > maxLimit) {
     throw new SearchQueryValidationError("Search limit configuration is invalid.");
   }
-  if (!positiveSafeInteger(snippetLength)) throw new SearchQueryValidationError("Snippet length configuration is invalid.");
+  if (!positiveSafeInteger(snippetLength) || snippetLength < 40 || snippetLength > 1000) {
+    throw new SearchQueryValidationError("Snippet length configuration must be between 40 and 1000.");
+  }
   return { defaultLimit, maxLimit, snippetLength };
 }
 function validateRequest(request: StandardSearchRequest, config: Required<StandardSearchOptions>) {
