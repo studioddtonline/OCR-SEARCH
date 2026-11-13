@@ -11,8 +11,8 @@ export type QueryNode =
 
 export class SearchQueryValidationError extends Error {
   readonly code = "SEARCH_QUERY_VALIDATION";
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "SearchQueryValidationError";
   }
 }
