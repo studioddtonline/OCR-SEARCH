@@ -118,7 +118,7 @@ Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI�
 ### Golden expectations
 - 現行テストのinline fixtureと期待IDをまずそのまま移植し、移植時に都合よく期待値を変更しない。
 - 実行環境依存の絶対パス、時刻、native error message、Worker request IDはgolden値に含めない。
-- BM25 scoreは同一fixture / 同一SQLite・extension条件で比較する。浮動小数の完全一致が環境依存になる場合は、順位を必須一致とし、丸めたscoreの比較許容幅を明記する。許容幅は実測前に勝手に決めない。
+- BM25 scoreは同一Node / SQLite / Vaporetto extension / model / fixture条件で完全一致比較する。固定の小数丸め許容幅は設けない。異なる環境間ではscore絶対値の比較をせず、複数document fixtureで順位と同点時ID tie-breakを検証する。
 - Japanese index metadataのindexed_atはfixture固定値を使う。
 - extensionがない環境ではnative integrationをskipできるが、CI / release acceptanceではextension付きの実行を必須にする。
 
@@ -130,7 +130,12 @@ Zod schema、MCP JSON Schema、tool名、MCP result envelopeはOCR-SEARCHのAPI�
 - schema v2 metadata mismatch / malformed FTS schema rejection。
 - package Worker asset path解決、npm pack tarball install後のWorker起動。
 - close後のAPI呼び出し、close中のactive / queued request rejection、terminate完了待ち。
-- standard searchのAbortSignal開始前キャンセル。
+- standard searchのAbortSignal開始前キャンセル（現行にはない新規APIとして別枠）。
+- limit / offset / afterIdのpackage boundary検証・default適用（現行repositoryではなくMCP Zod boundaryにある責務の移動。基準8ケース外の新規テスト）。
+- test-only strict trigram validator（production validatorのtokenizer互換性を変更しない）。
+- Japanese public resultのindexedAt、CLI日本語検索の明示opt-in / startup待機表示。
+- 同一環境BM25 score完全一致と複数document順位 / tie-break（scoreの固定許容幅は設けない）。
+- npm 12 allow-remote / prepare lifecycle / lockfile integrityを含むtarball distribution tests。
 - caller-owned DatabaseSyncがpackage close後もopenのままであること。
 - DB contract validatorのpositive / negative conformance cases。
 
