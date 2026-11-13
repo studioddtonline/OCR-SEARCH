@@ -1,0 +1,14 @@
+Third-party notices
+
+OCR-SEARCH does not include or redistribute the sqlite-vaporetto native binary or its embedded model.
+The optional installer downloads the pinned upstream sqlite-vaporetto release and verifies its SHA-256 before installation.
+
+- sqlite-vaporetto native extension: MIT OR Apache-2.0.
+- The upstream `-with-model` release embeds `bccwj-suw+unidic_pos+kana.model.zst`, licensed BSD-3-Clause.
+
+Upstream source, release assets, and complete license notices:
+https://github.com/hotchpotch/sqlite-vaporetto
+
+The installer copies upstream license files and MODEL_LICENSES.md, when present in the verified archive, beside the installed native extension. Preserve those notices when redistributing that extension.
+
+The license for OCR-SEARCH's own source code has not yet been selected; this NOTICE does not grant a license to that code.
