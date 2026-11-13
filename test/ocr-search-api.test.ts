@@ -53,6 +53,7 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
     assert.equal(result.index.indexedAt, fixture.metadata.indexedAt);
     assert.equal(result.index.indexedRecords, 1);
     await assert.rejects(search.searchJapanese({ query: "東京", limit: 21 }), /limit/);
+    await assert.rejects(search.searchJapanese({ query: "😀".repeat(251) }), /500 UTF-16 code units/);
   } finally {
     search.close();
     database.close();
