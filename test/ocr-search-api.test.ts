@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { createStandardSearchFixture } from "./support/standard-search-fixture.mjs";
 import { createJapaneseSearchFixtureIndex } from "./support/japanese-search-fixture.mjs";
 import { OcrSearch } from "../src/ocr-search.js";
@@ -32,6 +33,7 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
   const indexPath = join(directory, "japanese.sqlite");
   const fixture = createJapaneseSearchFixtureIndex(indexPath, extensionPath);
   const database = createStandardSearchFixture("keyset-pagination");
+  database.prepare("INSERT INTO source_images (id, file_path, file_name, ocr_text, reviewed) VALUES (?, ?, ?, ?, ?)").run(7, "テスト書籍", "001.webp", "東京特許許可局", 1);
   const search = new OcrSearch({
     database,
     japanese: {
@@ -71,5 +73,56 @@ test("Japanese search is disabled unless explicit Worker configuration is suppli
   } finally {
     search.close();
     database.close();
+  }
+});
+
+test("Japanese search hydrates current source fields and continues past deleted snapshot rows", {
+  skip: !existsSync(extensionPath),
+}, async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ocr-search-japanese-hydrate-"));
+  const indexPath = join(directory, "japanese.sqlite");
+  const fixture = createJapaneseSearchFixtureIndex(indexPath, extensionPath);
+  const indexDb = new DatabaseSync(indexPath);
+  try {
+    indexDb.prepare("INSERT INTO japanese_documents (source_id, file_path, file_name, reviewed, ocr_text) VALUES (?, ?, ?, ?, ?)").run(
+      8, "旧ラベル", "008.webp", 1, "東京特許許可局",
+    );
+    indexDb.prepare("INSERT INTO japanese_fts(rowid, search_text) VALUES (?, ?)").run(8, fixture.queryTokens.join(" "));
+    indexDb.prepare("UPDATE japanese_search_meta SET source_record_count = 2, source_max_id = 8 WHERE singleton = 1").run();
+  } finally {
+    indexDb.close();
+  }
+
+  const database = createStandardSearchFixture("keyset-pagination");
+  database.prepare("INSERT INTO source_images (id, file_path, file_name, ocr_text, reviewed) VALUES (?, ?, ?, ?, ?)").run(
+    8, "最新ラベル", "008-current.webp", "更新後のOCR本文：東京特許許可局を確認。", 0,
+  );
+  const search = new OcrSearch({
+    database,
+    japanese: { indexPath, extensionPath, busyTimeoutMs: 500, maxLimit: 10 },
+  });
+  try {
+    const result = await search.searchJapanese({
+      query: fixture.query,
+      mode: "any",
+      label: "最新ラベル",
+      reviewed: false,
+      limit: 1,
+    });
+    // Snapshot row 7 sorts first but has been deleted from source_images. The API
+    // continues to the next candidate and hydrates row 8 from the current source DB.
+    assert.deepEqual(result.results.map((row) => row.id), [8]);
+    assert.equal(result.results[0]?.label, "最新ラベル");
+    assert.equal(result.results[0]?.fileName, "008-current.webp");
+    assert.equal(result.results[0]?.reviewed, 0);
+    assert.match(result.results[0]?.snippet ?? "", /更新後のOCR本文/);
+    assert.match(result.results[0]?.snippet ?? "", /〔[^〕]*東京[^〕]*〕/);
+    assert.equal(result.returned, 1);
+    assert.equal(result.nextOffset, null);
+    assert.equal(result.index.indexedAt, fixture.metadata.indexedAt);
+  } finally {
+    search.close();
+    database.close();
+    rmSync(directory, { recursive: true, force: true });
   }
 });
