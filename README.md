@@ -96,4 +96,4 @@ CLI は consumer 固有 config を暗黙に読み込まない。DB、index、ext
 
 ## npm / GitHub Release
 
-package には consumer install 時に build する `prepare` script を置かない。配布 tarball には build 済み `dist` を含める。GitHub Release tarball を dependency に指定する場合、npm 12 では consumer 側 `.npmrc` に `allow-remote=root`（環境により `all`）が必要になる場合がある。lockfile の依存integrityは記録済み。npm pack後のtarball install / API import / CLI起動はCIで検証済み。
+package には consumer install 時に build する `prepare` script を置かない。配布 tarball には build 済み `dist` を含める。`.github/workflows/release.yml` は `v<package.json version>` tag push時だけ動作し、lockfile install・native extension・全test・build・tarball install/API/CLI smoke testを再実行した後、GitHub Release assetとしてtarballを添付する。npm registryへのpublishは行わない。tagをpushするまではReleaseも作成されない。GitHub Release tarball を dependency に指定する場合、npm 12 では consumer 側 `.npmrc` に `allow-remote=root`（環境により `all`）が必要になる場合がある。lockfile の依存integrityは記録済み。npm pack後のtarball install / API import / CLI起動はCIで検証済み。
