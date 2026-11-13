@@ -182,3 +182,6 @@ GitHub Actions run #7（commit `6bc6947729fedab2fadfc9040485c26543589739`）でN
 
 
 最新CI確認: GitHub Actions run #39（commit `1315de4b2e58b91ce854845497334be92ac9d5a6`）でlockfileを使う npm ci、Node.js 22.16.0 / 24.x双方のtypecheck、38 tests、build、npm pack、temporary install、package import、CLI help smoke testが成功。日本語Worker byte-equivalence testも含む。
+
+
+日本語検索source hydrationのCI確認: GitHub Actions run #50（commit `6adee68ca695440c7b1f4b4266e376453358f53b`）で、Node.js 22.16.0 / 24.x双方の39 tests、npm ci、build、npm pack、temporary install、package import、CLI smoke testが成功。source DBの最新表示値とdeleted snapshot candidate後のpaginationを含む。
