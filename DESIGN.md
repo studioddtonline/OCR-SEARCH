@@ -840,7 +840,7 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - 日本語Worker lifecycleの基準10テストを固定sourceから移植。API / 実Worker integration testも追加。
 
 未完了:
-- 日本語検索結果のsource DB hydrate（本文・label・fileName・reviewedの最新化。検索順位・candidate IDsはsnapshot indexを維持）。
+- 日本語検索結果のsource DB hydrateは実装済み。残作業はOCR本文変更後のcandidate membershipがsnapshot依存である点を運用上明示すること。
 - CLI追加ケース、builderのstaging cleanup / rename failureの詳細テスト（source validation failureで既存indexを保持するテストは追加済み）。
 - OCR-SEARCH自身のLICENSE選定。利用者が選定中のため `private: true` は維持し、ライセンス関連のpackage設定は変更しない。第三者NOTICEは追加済み。
 - OCR-MCP-SERVER / BOOK-OCR Web UI consumer接続と配布経路の確定。
