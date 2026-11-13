@@ -81,9 +81,8 @@ export class OcrSearch {
       return Promise.reject(new SearchQueryValidationError("Japanese search query must not be empty."));
     }
     const query = input.query.trim();
-    let codePoints = 0;
-    for (const _character of query) if (++codePoints > 500) {
-      return Promise.reject(new SearchQueryValidationError("Japanese search query must contain at most 500 Unicode code points."));
+    if (query.length > 500) {
+      return Promise.reject(new SearchQueryValidationError("Japanese search query must contain at most 500 UTF-16 code units."));
     }
     const mode = input.mode ?? "any";
     if (mode !== "any" && mode !== "all") {
