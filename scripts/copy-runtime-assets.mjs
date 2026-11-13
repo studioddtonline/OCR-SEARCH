@@ -10,5 +10,4 @@ for (const [source, destination] of assets) {
   const target = resolve(root, destination);
   mkdirSync(dirname(target), { recursive: true });
   copyFileSync(resolve(root, source), target);
-  console.log(`Copied runtime asset: ${destination}`);
 }
