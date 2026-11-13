@@ -25,7 +25,7 @@ OCR-SEARCH は検索の意味・検索処理・日本語専用索引形式を所
 
 初期利用者は ocr-mcp-server、book-ocr Web UI、および OCR-SEARCH CLI。モノレポにはしない。book-ocr は OCR・DB 管理に専念し、独自の CLI 検索実装・検索コマンドは持たない。CLI 検索が必要な場合は OCR-SEARCH が提供する CLI（例: `ocr-search search --database <path>`）を直接利用する。CLI は DB path、必要なら日本語 index path / extension path などを明示引数で受け取り、consumer 固有 config を暗黙に読み込まない。初期配布は GitHub Releases の npm pack tarball を想定し、公開 npm は必須としない。
 
-**抽出フェーズでは検索仕様を変更しない。** 仕様変更は抽出完了後の別作業・別バージョンにする。
+**抽出フェーズでは検索仕様を変更しない。** 仕様変更は抽出完了後の別作業・別バージョンにする。ただし、独立packageの入力境界として必要なlimit / offset / afterIdの検証と既定値適用、および標準検索の開始前AbortSignal対応は、現行のMCP boundary / repository間の責務をpackage APIへ再配置するための明示的な例外とする。検索結果の意味論は変更せず、基準8ケースとは別の新規テストで検証する。
 
 ## 2. プロジェクト構成と依存方向
 
@@ -112,6 +112,7 @@ term ごとに Unicode code points 数で切り替える。
 - maxLimit 既定: 50、設定可能な最大値: 100
 - offset: 0〜1,000,000
 - afterId: 正の安全な整数
+- 現行repository自体はlimit / offset / afterIdの範囲検証を担わず、MCP boundaryがlimit等を検証する。OCR-SEARCHの独立APIではこの検証と既定値適用をpackage boundaryへ移す。
 - afterId と正の offset は併用不可（offset=0 は afterId と共存可能）
 - afterId 指定時は id > afterId の keyset pagination
 - 次ページがある場合、返却最終行の ID を nextAfterId として返す。次ページがなければ null。
@@ -264,7 +265,7 @@ term ごとに Unicode code points 数で切り替える。
 
 標準検索も日本語検索も Promise を返す。ただし Promise 化だけでは同期 SQLite 処理が別スレッドになるわけではない。
 
-初期版では標準検索の既存同期処理を維持し、Promise API で包む。標準検索の `AbortSignal` は処理開始前のキャンセル確認に限り、同期 SQLite 処理の開始後の中断は保証しない。日本語検索の Abort は Worker queue の状態に応じた既存のキャンセル動作を維持する。両者でキャンセル保証が異なることを API ドキュメントに明記する。イベントループ占有が実測上の問題になった場合に標準検索の Worker 化を別途検討する。抽出のためだけに標準検索を Worker 化しない。抽出後は必要に応じて検索実行時間・イベントループ遅延を計測し、Worker 化を別途判断する。
+初期版では標準検索の既存同期処理を維持し、Promise API で包む。標準検索の `AbortSignal` は現行実装には存在しない新規APIであり、抽出時の明示的な追加例外とする。処理開始前にsignalを確認し、既にabort済みなら検索を開始せず SearchCancelledError とする。同期SQLite処理の開始後の中断は保証しない。日本語検索の Abort は Worker queue の状態に応じた既存のキャンセル動作を維持する。両者でキャンセル保証が異なることを API ドキュメントに明記する。イベントループ占有が実測上の問題になった場合に標準検索の Worker 化を別途検討する。抽出のためだけに標準検索を Worker 化しない。抽出後は必要に応じて検索実行時間・イベントループ遅延を計測し、Worker 化を別途判断する。
 
 ### 5.4 WorkerHost
 
@@ -347,6 +348,16 @@ export interface StandardSearchRequest {
   afterId?: number;
 }
 
+// Package boundary validation/defaults:
+// - omitted limit => options.defaultLimit (default 20)
+// - limit must be a positive safe integer <= options.maxLimit (default 50, maximum 100)
+// - offset, when supplied, must be an integer in [0, 1_000_000]
+// - afterId, when supplied, must be a positive safe integer
+// - afterId and offset > 0 are mutually exclusive; offset=0 may coexist
+// - invalid values are rejected with SearchQueryValidationError; never clamp or round
+// Japanese search applies positive-safe-integer limit (default 20, max 20 by default / 50 maximum)
+// and non-negative safe-integer offset validation at the package boundary.
+
 export interface JapaneseSearchRequest {
   query: string;
   mode?: "any" | "all";
@@ -369,6 +380,7 @@ export function parseSearchQuery(input: unknown): QueryNode;
 API上の注意:
 
 - 日本語検索を無効にした instance で searchJapanese を呼んだら明示的な safe error。
+- limit / offset / afterIdの検証と既定値適用はpackage boundaryが所有する。現行MCP Zod boundaryにある検証責務をpackage APIへ移す意図的な変更であり、範囲外は拒否する（clamp / roundしない）。MCP側のZodは浅い型・入力検証を維持してよいが、制約値の正本はpackageの公開定数とする。
 - Worker ready promise を内部管理し、最初の日本語検索は ready / startup failure を待つ。
 - close() は非同期とし、Worker terminate 完了を待てる。
 - package は caller の DatabaseSync を所有しない。
@@ -429,7 +441,7 @@ MCP adapter は package error を MCP safe error に変換し、Web UI adapter �
 - images_fts MATCH ? が実行できる。
 - images_fts が source_images.ocr_text を反映している。通常は book-ocr の external-content FTS5 と同期 trigger で実現。
 
-現行 validator は trigram tokenizer や trigger SQL 文面を要求していない。実際の MATCH probe と適合テストを重視する。
+現行validatorはtrigram tokenizerやtrigger SQL文面を要求していない。MATCH probeだけではtrigramとunicode61を区別できないため、本番validatorの互換性範囲は維持する一方、test-only strict helperでsqlite_master.sqlのtokenize='trigram'を検証する。
 
 ### testing export
 
@@ -441,7 +453,9 @@ ocr-search/testing は assertSearchDatabaseCompatible(db) を提供する。
 3. images_fts が FTS5 virtual table。
 4. MATCH probe。
 
+テスト専用に `assertTrigramSearchDatabaseCompatible(db)`（または同等のtest helper）を設け、production validatorの全検査に加え、`sqlite_master.sql` の `images_fts` 定義に `tokenize='trigram'` が指定されていることを確認する。production validatorの互換性範囲は広げない。
 検査しない:
+- production validatorはtokenizer種別（trigram / unicode61）を検査しない。MATCH probeからtokenizerを推定しない。
 - insert / update / delete trigger 定義。
 - OCR write history table。
 - MCP 固有 trigger 名。
@@ -607,13 +621,15 @@ worker.mjs は runtime asset として tarball に含める。package の ESM en
 4. GitHub Release に tarball と SHA-256 を添付。
 5. consumer は Release tarball を dependency として参照し、lockfile integrity で固定。
 
-git dependency は初期採用しない。prepare build や consumer allowScripts policy に左右されないよう、配布物に build 済み dist を含める。
+git dependencyは初期採用しない。配布物にbuild済みdistを含め、consumer install時のbuild script実行を要求しない。
+
+npm 12以降ではGitHub Releasesのremote tarball URLが既定の `allow-remote=none` により拒否され得る。consumerの `.npmrc` に必要な範囲で `allow-remote=root`（環境上必要なら `all`）を設定する導入手順をREADMEに記載する。配布packageに `prepare` lifecycle scriptを残さない。buildはCIで行い、必要な場合のみ `prepack` を使う。lockfileのintegrity検証は維持し、tarball差し替え時はlockfile更新を必須とする。
 
 ### package metadata
 
 - package name: ocr-search（仮称。公開 npm を使う場合は namespace availability を確認）
 - module: ESM
-- Node engine の共通下限は `>=22.16.0` を採用候補とする。OCR-MCP-SERVER が既にこの下限であり、BOOK-OCR の Node 24+ は先行したローカル実行環境に合わせた設定である。OCR-SEARCH が使用する `node:sqlite` / Worker API と native extension load API が 22.16.0 で満たされることを実装前に確認し、問題がなければ OCR-SEARCH、OCR-MCP-SERVER、BOOK-OCR を `>=22.16.0` に統一する。
+- Node engineの共通下限は `>=22.16.0` とする。Node 22.22で日本語fixture（allowExtension / Worker）およびBOOK-OCRの330テストが通った実測報告がある。22.16.0ちょうどは未検証のため、CIで最小サポート版の検証を追加し、確認前に22.16.0での動作保証を主張しない。
 - exports を明示し内部 deep import を避ける。
 - files allowlist で dist / worker / notices / runtime assets を含める。
 - native binary / consumer config / test files は tarball に含めない。
@@ -688,9 +704,24 @@ git dependency は初期採用しない。prepare build や consumer allowScript
 5. 必要なら後続 minor で parseQueryText() を追加。
 6. OCR DB 更新または Japanese index 再構築後は Web UI Node.js サーバーを再起動する運用とする。
 
-## 14. 抽出後の仕様変更として後回しにするもの
+## 14. 抽出後の仕様変更・追加検討として後回しにするもの
+
+### 日本語index snapshotの鮮度と表示データ
+
+日本語検索indexには構築時点のOCR本文とreviewed値がコピーされる。Web UIでOCR本文やreviewedを更新した後、再index・consumer再起動まで日本語検索は古い本文・reviewed filter結果を返す可能性がある。これは現在のsnapshot index方式に伴う整合性制約として明示する。
+
+- 検索順位・候補抽出はsnapshot indexで行う。
+- 表示用本文とreviewed値は、検索後にconsumerがsource DBからIDで再取得するhydrate方式を優先検討する。Worker内のindex DB接続とsource DB接続を共有しない。
+- 日本語検索結果にはindex metadata由来の `indexedAt` を含め、Web UIが索引時点を表示できるようにする。既存metadataの `indexed_at` をpublic resultへ含める実装が必要。
+- rename置換後も既存SQLite connectionは古いinode / file handleを読み続け得る。再起動前のprocessは古いindexを読み続けることを前提とし、自動hot swapを約束しない。
+
+### CLIの日本語検索起動コスト
+
+日本語検索はWorker起動とVaporetto model初期化により、起動ごとに約5.4秒・約325MBという実測報告がある。CLIでは日本語検索を明示option（例 `--japanese`）で選択させ、初期化中の待機表示を出す。通常の標準検索では日本語Workerを起動しない。
+
 
 - Japanese default mode any -> all。
+- 日本語検索のsnapshot本文 / reviewedのfreshness問題に対するsource DB hydrateのAPI設計（consumer側責務を含む）。
 - 標準 / 日本語 snippet の統一。
 - 標準検索の Worker 化。
 - Web UI 用 query text grammar（例 A B -C）。
