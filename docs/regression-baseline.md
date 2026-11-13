@@ -167,3 +167,10 @@ fixture作成後、standard fixture JSONを再読込して構文検証し、Unic
 - `test/support/japanese-search-fixture.mjs`: 実Vaporetto extensionで固定metadata / 1 documentのschema v2 indexを生成し、Workerが開く前にbuilder接続をcloseする。
 
 fixture dataとbuilderは準備したが、package APIに対するexecutable regression testsはまだ作成していない。
+
+
+## 10. OCR-SEARCHへの移植状況（2026-11-13）
+
+固定baselineの日本語Worker test file（10 test block）は `test/japanese-search-repository.test.ts` に移植済み。元のFake Workerによるqueue / cancel / timeout / restart testsを維持し、package内の `JapaneseSearchRepository` を直接検証する。標準検索は `test/standard-search.test.ts` と `test/query.test.ts`、DB contractは `test/database-contract.test.ts`、統合APIと実Workerは `test/ocr-search-api.test.ts` に追加した。
+
+移植コードは未実行である。source implementationとの自動baseline比較、BM25 multi-document ranking、index replacement connection test、builder failure cases、tarball smoke testは未完了。
