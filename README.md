@@ -15,9 +15,11 @@
 - 標準SQLite検索repositoryと64件LRU prepared-statement cache
 - limit / offset / afterIdのpackage boundary validation
 - 標準検索開始前のAbortSignal対応
-- 標準検索baseline fixtureを使う回帰テスト初版
+- 標準検索baseline fixtureを使う回帰テスト初版（8 scenario）
+- AST parser / SQL compiler境界テスト
+- production DB contract validatorとtest-only strict trigram validator
 
-日本語検索Worker、index builder、DB contract validator、baseline equivalence harness、CLI、Release tarball検証は未実装。現時点でビルド・テスト実行済みとはしていない。
+日本語検索Worker、index builder、baseline equivalence harness、CLI、Release tarball検証は未実装。現時点でビルド・テスト実行済みとはしていない。
 
 ## 開発環境
 
