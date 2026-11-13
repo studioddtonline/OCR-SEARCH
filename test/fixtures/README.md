@@ -22,3 +22,12 @@ node test/verify-fixtures.mjs
 
 This verifies fixture structure and pinned source metadata only. It does not run
 searches or establish semantic equivalence with the source implementation.
+
+
+## 実行テストへの接続
+
+- `test/japanese-search-repository.test.ts` は固定baselineの日本語Worker lifecycle 10ケースを移植したもの。
+- `test/ocr-search-api.test.ts` はcaller-owned DB lifecycleと、日本語実Worker integration（native extensionがある場合）を検証する。
+- `test/standard-search.test.ts` / `test/query.test.ts` は標準検索のfixture・parser/compilerを検証する。
+
+これらはコード上のテスト追加状態であり、実行成功を意味しない。native extensionがない環境では日本語integrationがskipされるため、CIでextension付き実行を必須にする必要がある。
