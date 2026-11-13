@@ -840,13 +840,10 @@ BOOK-OCR の旧検索実装は移行対象の差分調査に使用し、抽出�
 - 日本語Worker lifecycleの基準10テストを固定sourceから移植。API / 実Worker integration testも追加。
 
 未完了:
-- 日本語検索のbaseline完全一致比較（queryTokens / score / snippet / pagination）の拡張。BM25の複数文書rank / ID tie-breakテストと、index置換後の旧・新connection挙動テストは追加済み。
-- 日本語index snapshotのsource DB hydrate方針（indexedAtは現行結果に含むが、本文・reviewedはsnapshotのまま）。
+- 日本語検索結果のsource DB hydrate（本文・label・fileName・reviewedの最新化。検索順位・candidate IDsはsnapshot indexを維持）。
 - CLI追加ケース、builderのstaging cleanup / rename failureの詳細テスト（source validation failureで既存indexを保持するテストは追加済み）。
-- npm lockfile、OCR-SEARCH自身のLICENSE確定。CI run #9でnpm pack tarballのinstall / API import / CLI smoke testまで成功。第三者NOTICEは追加済み。
-- Node.js 22.16.0 exact floorはGitHub Actionsで検証済み。
-
-ChatGPT側では `npm install` / `npm run typecheck` / `npm test` / `npm run build` を実行していない。これらの成否は利用者のローカル実行ログで確定する。
+- OCR-SEARCH自身のLICENSE選定。利用者が選定中のため `private: true` は維持し、ライセンス関連のpackage設定は変更しない。第三者NOTICEは追加済み。
+- OCR-MCP-SERVER / BOOK-OCR Web UI consumer接続と配布経路の確定。
 
 
 ### CI実行記録
@@ -858,3 +855,5 @@ ChatGPT側では `npm install` / `npm run typecheck` / `npm test` / `npm run bui
 - GitHub Actions run #9: `53f78753486730ac3cc688a7b73c7b9008672202` — Node.js 22.16.0 / 24.x双方でtypecheck、37 tests、build、npm pack、temporary install、package root import、CLI help smoke testが成功。
 
 - GitHub Actions run #30: `12d5790c2242d8a5909d25e24245ac468f4e24a3` — Node.js 22.16.0 / 24.x双方でtypecheck、38 tests、build、npm pack、temporary install、package root import、CLI help smoke testがすべて成功。日本語Worker source equivalence testとpublic JapaneseSearchOptionsの分離を含む最新状態を検証。
+
+- GitHub Actions run #39: `1315de4b2e58b91ce854845497334be92ac9d5a6` — lockfileを使う `npm ci`、Node.js 22.16.0 / 24.xのtypecheck、38 tests、build、npm pack、temporary install、package root import、CLI help smoke testがすべて成功。close後のJapanese APIも安定した `SearchUnavailableError` を返す。
