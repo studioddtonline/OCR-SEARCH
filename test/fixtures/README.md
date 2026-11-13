@@ -29,5 +29,6 @@ searches or establish semantic equivalence with the source implementation.
 - `test/japanese-search-repository.test.ts` は固定baselineの日本語Worker lifecycle 10ケースを移植したもの。
 - `test/ocr-search-api.test.ts` はcaller-owned DB lifecycleと、日本語実Worker integration（native extensionがある場合）を検証する。
 - `test/standard-search.test.ts` / `test/query.test.ts` は標準検索のfixture・parser/compilerを検証する。
+- `test/baseline-equivalence.test.ts` は固定commitから隔離した検索実装snapshotと抽出後repositoryを同じfixtureで実行し、標準検索結果オブジェクトを完全一致比較する。
 
 これらはコード上のテスト追加状態であり、実行成功を意味しない。native extensionがない環境では日本語integrationがskipされるため、CIでextension付き実行を必須にする必要がある。
