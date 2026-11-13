@@ -72,6 +72,12 @@ test("standard search package boundary applies defaults and validates pagination
     const defaults = await repository.search({ query: "sample" });
     assert.equal(defaults.limit, 20);
     assert.equal(defaults.offset, 0);
+    const constrained = new StandardSearchRepository(db, { maxLimit: 10 });
+    assert.equal((await constrained.search({ query: "sample" })).limit, 10);
+    constrained.close();
+    assert.throws(() => new StandardSearchRepository(db, { defaultLimit: 20, maxLimit: 10 }), SearchQueryValidationError);
+    assert.throws(() => new StandardSearchRepository(db, { snippetLength: 39 }), SearchQueryValidationError);
+    assert.throws(() => new StandardSearchRepository(db, { snippetLength: 1001 }), SearchQueryValidationError);
     for (const request of [
       { query: "sample", limit: 0 }, { query: "sample", limit: -1 },
       { query: "sample", limit: 1.5 }, { query: "sample", limit: 51 },
