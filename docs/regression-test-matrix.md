@@ -215,6 +215,6 @@ MCP側では、公開OCR-SEARCH APIへのadapter integrationを残す。BOOK-OCR
 - Worker lifecycleの基準10テスト: `test/japanese-search-repository.test.ts`
 - build時runtime assets copy: `scripts/copy-runtime-assets.mjs`
 
-日本語Worker lifecycleの10 test blockは固定baselineから移植済み。実extension integration testはextensionが存在しない環境ではskipされる。追加したGitHub Actions workflowはpinned extensionをinstallしてからテストを実行する構成。初回workflow結果は未確認。標準検索のbaseline equivalence harnessと、builderのsource validation failure時に既存indexを保持するテストは追加済み。日本語BM25の複数文書rank / ID tie-breakと、index置換connection testは追加済み。日本語検索のbaseline完全一致score比較、staging / rename failureの詳細、distribution acceptanceは未完了。
+日本語Worker lifecycleの10 test blockは固定baselineから移植済み。実extension integration testはextensionが存在しない環境ではskipされる。追加したGitHub Actions workflowはpinned extensionをinstallしてからテストを実行する構成。GitHub Actions run #7でNode.js 22.16.0 / 24.x双方のtypecheck・37 tests・build・pack runtime asset checkが成功。後続でtarball install / import / CLI smoke testを追加したため、その新workflowの結果は別途確認する。標準検索のbaseline equivalence harnessと、builderのsource validation failure時に既存indexを保持するテストは追加済み。日本語BM25の複数文書rank / ID tie-breakと、index置換connection testは追加済み。日本語検索のbaseline完全一致score比較、staging / rename failureの詳細、distribution acceptanceは未完了。
 
 **重要:** これらはGitHub上にコードを追加したという状態であり、build / typecheck / testが成功したという意味ではない。ローカル実行による確認が必要。
