@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { SearchCancelledError, SearchQueryError, SearchUnavailableError } from "./errors.js";
 import { compileQuery, extractPositiveTerms, parseSearchQuery, SearchQueryValidationError, type QueryNode } from "./query.js";
-import { reviewedSqlPredicate } from "./reviewed.mjs";
+import { reviewedSqlPredicate } from "./reviewed.js";
 
 export interface StandardSearchRequest {
   query: unknown;
