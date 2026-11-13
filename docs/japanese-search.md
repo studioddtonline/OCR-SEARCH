@@ -110,13 +110,13 @@ When Japanese search is configured, OCR-SEARCH launches one dedicated Worker. Th
 - `limit`: 1 to configured `maxLimit` (default is `Math.min(20, maxLimit)`).
 - `offset`: relevance-ranked pagination offset, capped at 100,000.
 
-The result includes query tokens, snippets taken from indexed OCR text with best-effort match highlighting, source IDs, labels, file names, review states, BM25 scores, index metadata including `indexedAt`, and `nextOffset` when another page exists. BM25 scores are lower for better matches. Highlighting is substring-based and may be approximate where a query token occurs inside a longer OCR word.
+The result includes query tokens, snippets generated from the current source OCR text with best-effort match highlighting, source IDs, current labels, file names and review states, BM25 scores from the snapshot index, index metadata including `indexedAt`, and `nextOffset` when another page exists. Label and reviewed filters are applied to current source rows. If snapshot candidates have been deleted from the source DB or no longer match current filters, the reader continues through later index candidates to fill the requested page when possible. BM25 scores are lower for better matches. Highlighting is substring-based and may be approximate where a query token occurs inside a longer OCR word.
 
 **Important:** Vaporetto is a Japanese word tokenizer, not a character-substring index. A one-character query is not guaranteed to find that character inside every longer token. Use standard search when exact short-substring matching is required: 1–2 Unicode-code-point terms use case-sensitive literal substring matching; terms of 3+ code points use the source FTS5 trigram phrase index. Standard search can combine these terms with nested AND/OR/NOT expressions. The one- and two-character path scans the source OCR table and can cost more than indexed searches; it does not depend on the Japanese snapshot index and does not apply Unicode normalization.
 
 ## 6. Index freshness and restart policy
 
-The Japanese index is a snapshot. It is not automatically updated when the OCR application changes `source_images` or review state. Search results can therefore contain OCR text and review metadata from the time the index was built.
+The Japanese index is a snapshot used for candidate discovery and BM25 ranking. Displayed OCR text, label, file name, and reviewed state are hydrated from the current source DB at search time. Deleted source rows are omitted. Label and reviewed filters use current source values. However, adding records or changing OCR text does not rebuild the index: new content is not discoverable until reindexing, and changed text can temporarily remain or disappear as a candidate according to the old snapshot. `indexedAt` identifies the snapshot age.
 
 Rebuild the index after adding OCR records, changing OCR text, changing review state, or changing the source DB schema:
 
