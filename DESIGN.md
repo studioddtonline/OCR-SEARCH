@@ -856,3 +856,5 @@ ChatGPT側では `npm install` / `npm run typecheck` / `npm test` / `npm run bui
 - この実行はsource / testの現行実装を検証したもの。後続のtarball install / package import / CLI smoke testもrun #9で成功。
 
 - GitHub Actions run #9: `53f78753486730ac3cc688a7b73c7b9008672202` — Node.js 22.16.0 / 24.x双方でtypecheck、37 tests、build、npm pack、temporary install、package root import、CLI help smoke testが成功。
+
+- GitHub Actions run #30: `12d5790c2242d8a5909d25e24245ac468f4e24a3` — Node.js 22.16.0 / 24.x双方でtypecheck、38 tests、build、npm pack、temporary install、package root import、CLI help smoke testがすべて成功。日本語Worker source equivalence testとpublic JapaneseSearchOptionsの分離を含む最新状態を検証。
