@@ -24,7 +24,7 @@
 
 ## 開発環境
 
-Node.js `>=22.16.0`（22.16.0 exact は未検証）。
+Node.js `>=22.16.0`（GitHub Actionsで22.16.0 / 24.xを検証済み）。
 
 ```sh
 npm install
