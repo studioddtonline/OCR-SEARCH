@@ -34,9 +34,9 @@ if (new Set([sourcePath, outputPath, libraryPath]).size !== 3) {
   console.error("The source database, Japanese index, and native extension must be different paths.");
   process.exit(2);
 }
-const SEARCHABLE_TOKEN = /[\\p{L}\\p{N}]/u;
+const SEARCHABLE_TOKEN = /[\p{L}\p{N}]/u;
 function searchableTokens(value) {
-  return String(value ?? "").split(/\\s+/u).filter((token) => token.length > 0 && SEARCHABLE_TOKEN.test(token));
+  return String(value ?? "").split(/\s+/u).filter((token) => token.length > 0 && SEARCHABLE_TOKEN.test(token));
 }
 function quoteFts5Token(token) {
   return `"${token.replace(/"/gu, '""')}"`;
