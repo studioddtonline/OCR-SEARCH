@@ -101,7 +101,7 @@ class FakeJapaneseWorker extends EventEmitter {
   ready = false;
   terminated = false;
 
-  constructor(private readonly autoStart = true, autoReady = true) {
+  constructor(private readonly autoStart = true, autoReady = true, private readonly failTermination = false) {
     super();
     if (autoReady) {
       queueMicrotask(() => {
@@ -124,7 +124,7 @@ class FakeJapaneseWorker extends EventEmitter {
   terminate(): Promise<number> {
     this.terminated = true;
     queueMicrotask(() => this.emit("exit", 1));
-    return Promise.resolve(1);
+    return this.failTermination ? Promise.reject(new Error("simulated termination failure")) : Promise.resolve(1);
   }
 }
 
@@ -148,12 +148,13 @@ function fakeRepositoryOptions(
     maxRestartAttempts?: number;
     firstWorkerAutoStart?: boolean;
     autoReady?: boolean;
+    failTermination?: boolean;
     log?: (...args: unknown[]) => void;
   } = {},
 ) {
   const indexPath = join(dir, "index.sqlite");
   const fakeExtensionPath = join(dir, "extension.so");
-  const { firstWorkerAutoStart, autoReady = true, ...repositoryOptions } = extra;
+  const { firstWorkerAutoStart, autoReady = true, failTermination = false, ...repositoryOptions } = extra;
   writeFileSync(indexPath, "test-index");
   writeFileSync(fakeExtensionPath, "test-extension");
   return {
@@ -162,7 +163,7 @@ function fakeRepositoryOptions(
     busyTimeoutMs: 500,
     maxLimit: 10,
     workerFactory: () => {
-      const worker = new FakeJapaneseWorker(workers.length > 0 || firstWorkerAutoStart !== false, autoReady);
+      const worker = new FakeJapaneseWorker(workers.length > 0 || firstWorkerAutoStart !== false, autoReady, failTermination);
       workers.push(worker);
       return worker;
     },
@@ -431,6 +432,27 @@ test("Japanese execution timeout starts after Worker start and preserves queued 
     const secondId = workers[1]!.posted[0]!.id as number;
     workers[1]!.respond(secondId);
     assert.deepEqual(await second, { id: secondId });
+  } finally {
+    clearTimeout(keepAlive);
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("Worker termination failures are logged rather than silently discarded", async () => {
+  const dir = createTempDir("japanese-search-termination-failure-");
+  const workers: FakeJapaneseWorker[] = [];
+  const logs: unknown[][] = [];
+  const repo = JapaneseSearchRepository.open(fakeRepositoryOptions(dir, workers, {
+    failTermination: true,
+    log: (...args) => logs.push(args),
+  }));
+  const keepAlive = setTimeout(() => undefined, 1000);
+  try {
+    await waitUntil(() => workers.length === 1 && workers[0]!.ready);
+    workers[0]!.emit("error", new Error("simulated worker failure"));
+    await waitUntil(() => logs.some((entry) => entry[0] === "[japanese-search] worker termination failed:"));
+    assert.equal(logs.filter((entry) => entry[0] === "[japanese-search] worker termination failed:").length, 1);
   } finally {
     clearTimeout(keepAlive);
     repo.close();
