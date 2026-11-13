@@ -21,6 +21,7 @@ export {
   SearchCancelledError,
   SearchQueryError,
   SearchUnavailableError,
+  SearchWorkerError,
 } from "./errors.js";
 
 export { assertSearchDatabaseCompatible } from "./testing.js";
