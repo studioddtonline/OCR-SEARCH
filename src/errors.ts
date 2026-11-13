@@ -21,3 +21,11 @@ export class SearchQueryError extends Error {
     this.name = "SearchQueryError";
   }
 }
+
+export class SearchWorkerError extends Error {
+  readonly code = "SEARCH_WORKER_FAILED";
+  constructor(message = "Japanese search failed", options?: ErrorOptions) {
+    super(message, options);
+    this.name = "SearchWorkerError";
+  }
+}
