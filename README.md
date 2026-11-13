@@ -22,7 +22,7 @@
 - 日本語 Worker source equivalence、Worker lifecycle、BM25 ranking、index replacement tests
 - CLI の標準検索と明示 opt-in の日本語検索
 - package-lock.json（lockfileVersion 3）
-- GitHub Actions: Node.js 22.16.0 / 24.x、native extension、typecheck、38 tests、build、npm pack / temporary install / API import / CLI smoke test
+- GitHub Actions: Node.js 22.16.0 / 24.x、native extension、typecheck、39 tests、build、npm pack / temporary install / API import / CLI smoke test
 
 **未完了:** 日本語検索結果のsource DB hydrate（snapshot freshness改善）、package licenseの選定、OCR-MCP-SERVER / BOOK-OCR Web UI consumer接続。licenseは選定中のため `private: true` を維持する。
 
