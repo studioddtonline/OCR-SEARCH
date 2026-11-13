@@ -2,9 +2,9 @@
 import { DatabaseSync } from "node:sqlite";
 import { OcrSearch } from "./index.js";
 
-function readArguments(argv) {
+function readArguments(argv: string[]) {
   const [command, ...rest] = argv;
-  const options = {};
+  const options: Record<string, string> = {};
   for (let index = 0; index < rest.length; index += 1) {
     const item = rest[index];
     if (!item.startsWith("--")) throw new Error(`Unexpected argument: ${item}`);
@@ -19,24 +19,24 @@ function readArguments(argv) {
   }
   return { command, options };
 }
-function required(options, name) {
+function required(options: Record<string, string>, name: string): string {
   const value = options[name];
   if (typeof value !== "string" || !value) throw new Error(`Missing required --${name} option.`);
   return value;
 }
-function integerOption(options, name, fallback) {
+function integerOption(options: Record<string, string>, name: string, fallback: number): number {
   if (options[name] === undefined) return fallback;
   const value = Number(options[name]);
   if (!Number.isSafeInteger(value)) throw new Error(`--${name} must be an integer.`);
   return value;
 }
-function booleanOption(options, name) {
+function booleanOption(options: Record<string, string>, name: string): boolean | undefined {
   if (options[name] === undefined) return undefined;
   if (options[name] === "true") return true;
   if (options[name] === "false") return false;
   throw new Error(`--${name} must be true or false.`);
 }
-function parseQuery(value) {
+function parseQuery(value: string): unknown {
   const trimmed = value.trim();
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try { return JSON.parse(trimmed); }
@@ -62,7 +62,7 @@ async function main() {
   const databasePath = required(options, "database");
   const query = required(options, "query");
   const database = new DatabaseSync(databasePath, { readOnly: true, timeout: integerOption(options, "busy-timeout-ms", 500) });
-  let search;
+  let search: OcrSearch | undefined;
   try {
     const japanese = command === "search-japanese" ? {
       indexPath: required(options, "index"),
@@ -80,6 +80,8 @@ async function main() {
     const label = options.label;
     const limit = integerOption(options, "limit", 20);
     const offset = integerOption(options, "offset", 0);
+    const mode = options.mode ?? "any";
+    if (mode !== "any" && mode !== "all") throw new Error("--mode must be any or all.");
     const result = command === "search"
       ? await search.search({
           query: parseQuery(query),
@@ -91,7 +93,7 @@ async function main() {
         })
       : await search.searchJapanese({
           query,
-          mode: options.mode === undefined ? "any" : options.mode,
+          mode,
           ...(label === undefined ? {} : { label }),
           ...(reviewed === undefined ? {} : { reviewed }),
           limit,
