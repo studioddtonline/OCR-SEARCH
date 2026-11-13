@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { SearchQueryValidationError } from "./query.js";
+import { SearchUnavailableError } from "./errors.js";
 import { StandardSearchRepository, type StandardSearchOptions, type StandardSearchRequest, type StandardSearchResult } from "./standard-search.js";
 import { assertSearchDatabaseCompatible } from "./testing.js";
 import { JapaneseSearchRepository, type JapaneseSearchOptions, type JapaneseSearchRequest } from "./japanese/repository.js";
@@ -19,7 +20,29 @@ export interface JapaneseSearchInput {
   limit?: number;
   offset?: number;
 }
-export type JapaneseSearchResult = Awaited<ReturnType<JapaneseSearchRepository["search"]>>;
+export interface JapaneseSearchResult {
+  query: string;
+  mode: "any" | "all";
+  queryTokens: string[];
+  returned: number;
+  limit: number;
+  offset: number;
+  nextOffset: number | null;
+  index: {
+    tokenizer: string;
+    indexedAt: string;
+    indexedRecords: number;
+    sourceMaxId: number;
+  };
+  results: Array<{
+    id: number;
+    label: string | null;
+    fileName: string | null;
+    reviewed: number | null;
+    score: number;
+    snippet: string;
+  }>;
+}
 
 /** Unified search facade. The caller owns and must close the supplied source database. */
 export class OcrSearch {
@@ -32,17 +55,25 @@ export class OcrSearch {
     assertSearchDatabaseCompatible(options.database);
     this.standard = new StandardSearchRepository(options.database, options.standard);
     this.japaneseMaxLimit = options.japanese?.maxLimit ?? 20;
-    if (options.japanese) this.japanese = JapaneseSearchRepository.open(options.japanese);
+    if (options.japanese) {
+      if (!Number.isSafeInteger(options.japanese.maxLimit) || options.japanese.maxLimit < 1 || options.japanese.maxLimit > 50) {
+        throw new SearchQueryValidationError("Japanese search maxLimit must be an integer from 1 to 50.");
+      }
+      if (!Number.isSafeInteger(options.japanese.busyTimeoutMs) || options.japanese.busyTimeoutMs < 0 || options.japanese.busyTimeoutMs > 120000) {
+        throw new SearchQueryValidationError("Japanese search busyTimeoutMs must be an integer from 0 to 120000.");
+      }
+      this.japanese = JapaneseSearchRepository.open(options.japanese);
+    }
   }
 
   search(request: StandardSearchRequest, signal?: AbortSignal): Promise<StandardSearchResult> {
-    if (this.closed) return Promise.reject(new Error("Search instance is closed."));
+    if (this.closed) return Promise.reject(new SearchUnavailableError("Search instance is closed."));
     return this.standard.search(request, signal);
   }
 
   searchJapanese(input: JapaneseSearchInput, signal?: AbortSignal): Promise<JapaneseSearchResult> {
     if (this.closed) return Promise.reject(new Error("Search instance is closed."));
-    if (!this.japanese) return Promise.reject(new Error("Japanese search is not enabled."));
+    if (!this.japanese) return Promise.reject(new SearchUnavailableError("Japanese search is not enabled."));
     if (typeof input.query !== "string" || !input.query.trim()) {
       return Promise.reject(new SearchQueryValidationError("Japanese search query must not be empty."));
     }
@@ -71,7 +102,7 @@ export class OcrSearch {
       return Promise.reject(new SearchQueryValidationError("reviewed must be a boolean."));
     }
     const request: JapaneseSearchRequest = { query, mode, limit, offset, ...(input.label === undefined ? {} : { label: input.label }), ...(input.reviewed === undefined ? {} : { reviewed: input.reviewed }) };
-    return this.japanese.search(request, signal);
+    return this.japanese.search(request, signal) as Promise<JapaneseSearchResult>;
   }
 
   close(): void {
