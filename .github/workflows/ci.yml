@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22.16.0", "24.x"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install development dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install pinned sqlite-vaporetto release
+        run: npm run japanese-extension:install
+      - name: Verify native extension
+        run: npm run japanese-extension:check
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Run regression and integration tests
+        run: npm test
+      - name: Build package
+        run: npm run build
+      - name: Verify packed runtime assets
+        shell: bash
+        run: |
+          npm pack --dry-run --json > pack.json
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const [pack] = JSON.parse(fs.readFileSync("pack.json", "utf8"));
+            const paths = new Set(pack.files.map((file) => file.path));
+            for (const required of ["dist/cli.js", "dist/japanese/worker.mjs", "dist/reviewed.mjs", "NOTICE"]) {
+              if (!paths.has(required)) throw new Error("Packed package is missing " + required);
+            }
+            console.log("Packed runtime assets verified.");
+          '
