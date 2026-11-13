@@ -52,6 +52,9 @@ function validateOptions(options: StandardSearchOptions): Required<StandardSearc
   return { defaultLimit, maxLimit, snippetLength };
 }
 function validateRequest(request: StandardSearchRequest, config: Required<StandardSearchOptions>) {
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    throw new SearchQueryValidationError("Search request must be an object.");
+  }
   const limit = request.limit ?? config.defaultLimit;
   const offset = request.offset ?? 0;
   if (!positiveSafeInteger(limit) || limit > config.maxLimit) {
