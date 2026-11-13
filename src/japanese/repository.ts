@@ -1,6 +1,6 @@
 import { accessSync, constants } from "node:fs";
 import { Worker, type WorkerOptions } from "node:worker_threads";
-import { SearchWorkerError } from "../errors.js";
+import { SearchUnavailableError, SearchWorkerError } from "../errors.js";
 import { WorkerHost, type WorkerGeneration, type WorkerHostFailure, type WorkerThreadLike } from "../worker-host.js";
 
 export interface JapaneseSearchOptions {
@@ -120,14 +120,19 @@ export class JapaneseSearchRepository {
       startupTimeoutMs: options.startupTimeoutMs ?? DEFAULT_WORKER_STARTUP_TIMEOUT_MS,
       onMessage: (generation, message) => this.onMessage(message, generation),
       onFailure: (generation, failure) => this.onWorkerFailure(failure, generation),
+      onTerminationError: (_generation, error) => options.log?.("[japanese-search] worker termination failed:", error),
     });
     this.startWorker();
   }
 
   /** Check the configured files cheaply; the native extension and index are initialized and validated in the worker. */
   static open(options: JapaneseSearchOptions): JapaneseSearchRepository {
-    accessSync(options.indexPath, constants.R_OK);
-    accessSync(options.extensionPath, constants.R_OK);
+    try {
+      accessSync(options.indexPath, constants.R_OK);
+      accessSync(options.extensionPath, constants.R_OK);
+    } catch (cause) {
+      throw new SearchUnavailableError("Japanese search files are unavailable.", { cause });
+    }
     return new JapaneseSearchRepository(options);
   }
 
