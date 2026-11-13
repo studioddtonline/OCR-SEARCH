@@ -29,6 +29,9 @@
 - afterIdとoffset>0の併用を拒否し、offset=0との併用は許可。
 - 不正値はclamp / roundせずSearchQueryValidationErrorで拒否。
 - 日本語検索のlimit / offsetも同様にpackage boundaryで検証し、mode省略時はany。
+- 日本語queryはtrim後のUTF-16 code unit長で最大500（source Zod `.max(500)` と同じ）。
+- 日本語limit省略時は `Math.min(20, maxLimit)`。maxLimitが20未満でも既定値が範囲外にならない。
+- 標準検索configはdefaultLimit 1〜50、maxLimit 1〜100、snippetLength 40〜1000。defaultLimit未指定時は `Math.min(20, maxLimit)`。
 
 MCP Zod boundaryの既存テストは削除せず、MCP adapterがpackageへ渡す前の浅い入力検証と、package側の最終契約を別々に検証する。
 
