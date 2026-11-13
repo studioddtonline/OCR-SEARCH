@@ -9,11 +9,13 @@ export interface JapaneseSearchOptions {
   busyTimeoutMs: number;
   maxLimit: number;
   log?: (...args: unknown[]) => void;
-  /** Internal test seams; production uses the defaults. */
+}
+
+interface JapaneseSearchRuntimeOptions extends JapaneseSearchOptions {
+  /** Test-only seams; not part of the package's public OcrSearchOptions type. */
   workerFactory?: (url: URL, options: WorkerOptions) => WorkerThreadLike;
   executionTimeoutMs?: number;
   startupTimeoutMs?: number;
-  /** Internal test seams; production queue/restart limits use the defaults below. */
   queueWaitTimeoutMs?: number;
   restartBaseDelayMs?: number;
   restartMaxDelayMs?: number;
@@ -106,7 +108,7 @@ export class JapaneseSearchRepository {
     return this.state.lifecycle.kind === "closed";
   }
 
-  private constructor(private readonly options: JapaneseSearchOptions) {
+  private constructor(private readonly options: JapaneseSearchRuntimeOptions) {
     const factory: (url: URL, workerOptions: WorkerOptions) => WorkerThreadLike =
       options.workerFactory ?? ((url, workerOptions) => new Worker(url, workerOptions));
     this.workerHost = new WorkerHost<WorkerMessage, WorkerMetadata>({
@@ -126,7 +128,7 @@ export class JapaneseSearchRepository {
   }
 
   /** Check the configured files cheaply; the native extension and index are initialized and validated in the worker. */
-  static open(options: JapaneseSearchOptions): JapaneseSearchRepository {
+  static open(options: JapaneseSearchRuntimeOptions): JapaneseSearchRepository {
     try {
       accessSync(options.indexPath, constants.R_OK);
       accessSync(options.extensionPath, constants.R_OK);
