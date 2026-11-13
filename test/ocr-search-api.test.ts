@@ -36,16 +36,16 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
       indexPath,
       extensionPath,
       busyTimeoutMs: 500,
-      maxLimit: 20,
+      maxLimit: 10,
     },
   });
   try {
     const result = await search.searchJapanese({
       query: fixture.query,
       mode: "any",
-      limit: 10,
       offset: 0,
     });
+    assert.equal(result.limit, 10);
     assert.equal(result.returned, 1);
     assert.equal(result.results[0]?.id, 7);
     assert.equal(result.results[0]?.label, "テスト書籍");
