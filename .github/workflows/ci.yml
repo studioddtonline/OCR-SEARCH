@@ -34,10 +34,10 @@ jobs:
         run: npm test
       - name: Build package
         run: npm run build
-      - name: Verify packed runtime assets
+      - name: Pack and verify runtime assets
         shell: bash
         run: |
-          npm pack --dry-run --json > pack.json
+          npm pack --json > pack.json
           node --input-type=module -e '
             import fs from "node:fs";
             const [pack] = JSON.parse(fs.readFileSync("pack.json", "utf8"));
@@ -47,3 +47,30 @@ jobs:
             }
             console.log("Packed runtime assets verified.");
           '
+          PACKAGE_TARBALL="$(node -e 'const fs=require("node:fs"); process.stdout.write(JSON.parse(fs.readFileSync("pack.json","utf8"))[0].filename)')"
+          TEMP_INSTALL="$(mktemp -d)"
+          trap 'rm -rf "$TEMP_INSTALL"' EXIT
+          npm install --prefix "$TEMP_INSTALL" --no-save "$PWD/$PACKAGE_TARBALL"
+          (
+            cd "$TEMP_INSTALL"
+            node --input-type=module <<'NODE'
+            import assert from "node:assert/strict";
+            import { DatabaseSync } from "node:sqlite";
+            import { OcrSearch } from "ocr-search";
+            const database = new DatabaseSync(":memory:");
+            database.exec(`
+              CREATE TABLE source_images (
+                id INTEGER PRIMARY KEY, file_path TEXT, file_name TEXT, ocr_text TEXT, reviewed INTEGER
+              );
+              CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, tokenize='trigram');
+              INSERT INTO source_images VALUES (1, "smoke", "001.webp", "alpha package smoke", 0);
+              INSERT INTO images_fts(rowid, ocr_text) VALUES (1, "alpha package smoke");
+            `);
+            const search = new OcrSearch({ database });
+            const result = await search.search({ query: "alpha", limit: 1 });
+            assert.equal(result.results[0]?.id, 1);
+            search.close();
+            database.close();
+            NODE
+            ./node_modules/.bin/ocr-search help
+          )
