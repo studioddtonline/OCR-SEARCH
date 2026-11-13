@@ -23,7 +23,7 @@ test("parser enforces AST depth, node count, child count and positive-term requi
   for (let i = 0; i < MAX_QUERY_DEPTH; i++) deep = { type: "not", node: deep };
   assert.throws(() => parseSearchQuery(deep), /nested at most/);
 
-  const many: unknown = { type: "and", nodes: Array.from({ length: MAX_QUERY_CHILDREN }, (_, i) => ({ type: "term", value: `t${i}` })) };
+  const many: unknown = { type: "and", nodes: Array.from({ length: MAX_QUERY_CHILDREN }, (_, i) => ({ type: "and", nodes: [{ type: "term", value: `a${i}` }, { type: "term", value: `b${i}` }] })) };
   assert.throws(() => parseSearchQuery(many), /at most 32 nodes/);
   assert.throws(() => parseSearchQuery({ type: "and", nodes: [{ type: "term", value: "x" }] }), /2 to 16/);
   assert.throws(() => parseSearchQuery({ type: "not", node: { type: "term", value: "x" } }), /positive term/);
