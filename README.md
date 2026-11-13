@@ -83,7 +83,7 @@ const search = new OcrSearch({
 const result = await search.searchJapanese({ query: "吾輩は猫である", mode: "any" });
 ```
 
-index の再構築・置換後は、利用側アプリケーション（MCP server / Web UI Node server）を再起動する。日本語 index は snapshot であり、source DB の更新を自動反映しない。
+index の再構築・置換後は、利用側アプリケーション（MCP server / Web UI Node server）を再起動する。日本語 index は候補IDとBM25順位のsnapshot。表示用の本文・label・fileName・reviewedはsource DBから検索時にhydrateするが、OCR本文の変更・追加はindex再構築まで検索候補に反映されない。
 
 ## CLI
 
