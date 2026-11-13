@@ -154,7 +154,7 @@ Fake Workerは時刻を固定・注入する必要が出た場合を除き、現
 
 - Japanese indexの本文・reviewedはbuild時点のsnapshotであり、元DB更新後に再indexするまで古い可能性があることをテスト・文書で明示。
 - public Japanese resultに `indexedAt` が含まれることを検証する。
-- source DB hydrateは現時点で未実装の後続設計。採用時はconsumerがIDでsource_imagesから本文・reviewedを再取得し、検索順位・candidate IDsはindex snapshotを使うintegration testを追加する。
+- Japanese search hydration: candidate IDs / BM25 order from snapshot; current source DB supplies label, file name, reviewed, and snippet text. Deleted snapshot rows are skipped, current filters are applied, and pagination continues to fill the page.
 - index file rename後に古いconnectionが旧indexを読み続け、新しいconnectionが置換後indexを読むことを実測するtestを追加する。process restartが必要な運用を再確認する。
 
 ### Strict trigram test helper
