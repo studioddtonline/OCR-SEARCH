@@ -27,3 +27,4 @@ export {
 export { assertSearchDatabaseCompatible } from "./testing.js";
 
 export { OcrSearch, createOcrSearch, type JapaneseSearchInput, type JapaneseSearchResult, type OcrSearchOptions } from "./ocr-search.js";
+export type { JapaneseSearchOptions } from "./japanese/repository.js";
