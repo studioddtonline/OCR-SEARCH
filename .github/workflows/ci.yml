@@ -42,19 +42,25 @@ jobs:
         shell: bash
         run: |
           npm pack --silent
-          tar -tzf ocr-search-0.1.0.tgz > pack-files.txt
-          for required in package/dist/cli.js package/dist/japanese/worker.mjs package/dist/reviewed.mjs package/NOTICE; do
+          PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
+          PACKAGE_TARBALL="ocr-search-$PACKAGE_VERSION.tgz"
+          tar -tzf "$PACKAGE_TARBALL" > pack-files.txt
+          for required in package/dist/cli.js package/dist/japanese/worker.mjs package/dist/reviewed.mjs package/dist/query.js package/dist/reviewed.js package/dist/types.js package/dist/types.d.ts package/NOTICE; do
             grep -Fxq "$required" pack-files.txt || { echo "Packed package is missing $required" >&2; exit 1; }
           done
           TEMP_INSTALL="$(mktemp -d)"
           trap 'rm -rf "$TEMP_INSTALL"' EXIT
-          npm install --prefix "$TEMP_INSTALL" --no-save "$PWD/ocr-search-0.1.0.tgz"
+          npm install --prefix "$TEMP_INSTALL" --no-save "$PWD/$PACKAGE_TARBALL"
           (
           cd "$TEMP_INSTALL"
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
           import { DatabaseSync } from "node:sqlite";
           import { OcrSearch } from "ocr-search";
+          import { parseSearchQuery } from "ocr-search/query";
+          import { isReviewed } from "ocr-search/reviewed";
+          assert.equal(parseSearchQuery("alpha").type, "term");
+          assert.equal(isReviewed(null), true);
           const database = new DatabaseSync(":memory:");
           database.exec(`
             CREATE TABLE source_images (

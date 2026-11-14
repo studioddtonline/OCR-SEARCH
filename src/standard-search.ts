@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { SearchCancelledError, SearchQueryError, SearchUnavailableError } from "./errors.js";
 import { compileQuery, extractPositiveTerms, parseSearchQuery, SearchQueryValidationError, type QueryNode } from "./query.js";
 import { reviewedSqlPredicate } from "./reviewed.js";
+import type { OcrSearchHit } from "./types.js";
 
 export interface StandardSearchRequest {
   query: unknown;
@@ -16,13 +17,8 @@ export interface StandardSearchOptions {
   maxLimit?: number;
   snippetLength?: number;
 }
-export interface StandardSearchHit {
-  id: number;
-  file_path: string | null;
-  file_name: string | null;
-  reviewed: number | null;
-  snippet: string;
-}
+/** @deprecated Use OcrSearchHit from ocr-search/types. */
+export type StandardSearchHit = OcrSearchHit;
 export interface StandardSearchResult {
   results: StandardSearchHit[];
   returned: number;
@@ -171,8 +167,8 @@ export class StandardSearchRepository {
       }>;
       const hasMore = rows.length > limit;
       const pageRows = hasMore ? rows.slice(0, limit) : rows;
-      const results = pageRows.map(row => ({
-        id: row.id, file_path: row.file_path, file_name: row.file_name,
+      const results: OcrSearchHit[] = pageRows.map(row => ({
+        id: row.id, label: row.file_path, fileName: row.file_name,
         reviewed: row.reviewed, snippet: makeSnippet(row.ocr_text, terms, this.config.snippetLength),
       }));
       return {

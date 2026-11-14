@@ -43,7 +43,7 @@ jobs:
           PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
           PACKAGE_TARBALL="ocr-search-$PACKAGE_VERSION.tgz"
           tar -tzf "$PACKAGE_TARBALL" > pack-files.txt
-          for required in package/dist/index.js package/dist/cli.js package/dist/japanese/worker.mjs package/dist/reviewed.mjs package/NOTICE; do
+          for required in package/dist/index.js package/dist/cli.js package/dist/japanese/worker.mjs package/dist/reviewed.mjs package/dist/query.js package/dist/reviewed.js package/dist/types.js package/dist/types.d.ts package/NOTICE; do
             grep -Fxq "$required" pack-files.txt || { echo "Packed package is missing $required" >&2; exit 1; }
           done
           echo "PACKAGE_TARBALL=$PACKAGE_TARBALL" >> "$GITHUB_ENV"
@@ -59,6 +59,10 @@ jobs:
           import assert from "node:assert/strict";
           import { DatabaseSync } from "node:sqlite";
           import { OcrSearch } from "ocr-search";
+          import { parseSearchQuery } from "ocr-search/query";
+          import { isReviewed } from "ocr-search/reviewed";
+          assert.equal(parseSearchQuery("alpha").type, "term");
+          assert.equal(isReviewed(null), true);
           const database = new DatabaseSync(":memory:");
           database.exec(`
             CREATE TABLE source_images (

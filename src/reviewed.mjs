@@ -1,9 +1,11 @@
 /** Only reviewed=0 is unreviewed; NULL and every nonzero value are protected. */
 const REVIEWED_COLUMNS = new Set(["si.reviewed", "d.reviewed", "reviewed"]);
 
-export function isReviewedFlag(value) {
+export function isReviewed(value) {
   return value !== 0;
 }
+
+export const isReviewedFlag = isReviewed;
 
 export function reviewedSqlPredicate(column, reviewed) {
   if (!REVIEWED_COLUMNS.has(column)) throw new TypeError("Unsupported reviewed SQL column expression");
