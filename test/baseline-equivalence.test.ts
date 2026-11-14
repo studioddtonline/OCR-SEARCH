@@ -52,7 +52,20 @@ test("extracted standard search matches the pinned source implementation exactly
             offset,
             ...(query.afterId === undefined ? {} : { afterId: query.afterId }),
           });
-          assert.deepEqual(actual, expected, `${scenario.id} query #${index + 1}`);
+          // The extracted package intentionally exposes normalized public field names.
+          // Translate only the hit shape back to the pinned source contract so this
+          // test continues to compare search semantics, pagination and snippets.
+          const comparable = {
+            ...actual,
+            results: actual.results.map(({ id, label, fileName, reviewed, snippet }) => ({
+              id,
+              file_path: label,
+              file_name: fileName,
+              reviewed,
+              snippet,
+            })),
+          };
+          assert.deepEqual(comparable, expected, `${scenario.id} query #${index + 1}`);
         } finally {
           extracted.close();
         }
