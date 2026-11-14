@@ -5,6 +5,7 @@ import { StandardSearchRepository, type StandardSearchOptions, type StandardSear
 import { assertSearchDatabaseCompatible } from "./testing.js";
 import { JapaneseSearchRepository, type JapaneseSearchOptions, type JapaneseSearchRequest } from "./japanese/repository.js";
 import { makeJapaneseSnippet } from "./japanese/snippet.js";
+import type { OcrSearchHit } from "./types.js";
 
 export interface OcrSearchOptions {
   /** Caller-owned OCR database connection. OCR-SEARCH never closes it. */
@@ -35,14 +36,7 @@ export interface JapaneseSearchResult {
     indexedRecords: number;
     sourceMaxId: number;
   };
-  results: Array<{
-    id: number;
-    label: string | null;
-    fileName: string | null;
-    reviewed: number | null;
-    score: number;
-    snippet: string;
-  }>;
+  results: Array<OcrSearchHit & { score: number }>;
 }
 
 /** Unified search facade. The caller owns and must close the supplied source database. */
@@ -120,6 +114,8 @@ export class OcrSearch {
       const batchRequest: JapaneseSearchRequest = {
         query,
         mode,
+        ...(input.label !== undefined ? { label: input.label } : {}),
+        ...(input.reviewed !== undefined ? { reviewed: input.reviewed } : {}),
         limit: remaining,
         offset: cursor,
       };

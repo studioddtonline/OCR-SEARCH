@@ -8,13 +8,25 @@ import { createStandardSearchFixture } from "./support/standard-search-fixture.m
 import { createJapaneseSearchFixtureIndex } from "./support/japanese-search-fixture.mjs";
 import { OcrSearch } from "../src/ocr-search.js";
 import { SearchUnavailableError } from "../src/errors.js";
+import { isReviewed } from "../src/reviewed.js";
+
+test("isReviewed follows the shared nullable reviewed contract", () => {
+  assert.equal(isReviewed(0), false);
+  assert.equal(isReviewed(1), true);
+  assert.equal(isReviewed(-1), true);
+  assert.equal(isReviewed(null), true);
+  assert.equal(isReviewed(undefined), true);
+});
 
 test("OcrSearch.close does not close the caller-owned source database", async () => {
   const database = createStandardSearchFixture("short-literal-substring");
   const search = new OcrSearch({ database });
   try {
-    const result = await search.search({ query: "東京", limit: 10 });
+    const result = await search.search({ query: "川", limit: 10 });
     assert.equal(result.returned, result.results.length);
+    assert.equal(result.results[0]?.label, "Book A");
+    assert.equal(result.results[0]?.fileName, "001.webp");
+    assert.equal("file_path" in (result.results[0] ?? {}), false);
     search.close();
     assert.doesNotThrow(() => database.prepare("SELECT 1").get());
     await assert.rejects(search.search({ query: "東京" }), /closed/);
@@ -47,9 +59,12 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
     const result = await search.searchJapanese({
       query: fixture.query,
       mode: "any",
+      label: "テスト書籍",
+      reviewed: true,
+      limit: 1,
       offset: 0,
     });
-    assert.equal(result.limit, 10);
+    assert.equal(result.limit, 1);
     assert.equal(result.returned, 1);
     assert.equal(result.results[0]?.id, 7);
     assert.equal(result.results[0]?.label, "テスト書籍");
@@ -58,6 +73,39 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
     assert.equal(result.index.indexedRecords, 1);
     await assert.rejects(search.searchJapanese({ query: "東京", limit: 21 }), /limit/);
     await assert.rejects(search.searchJapanese({ query: "😀".repeat(251) }), /500 UTF-16 code units/);
+  } finally {
+    search.close();
+    database.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Japanese snapshot filters may omit records changed after index creation", {
+  skip: !existsSync(extensionPath),
+}, async () => {
+  const directory = mkdtempSync(join(tmpdir(), "ocr-search-japanese-stale-filter-"));
+  const indexPath = join(directory, "japanese.sqlite");
+  const fixture = createJapaneseSearchFixtureIndex(indexPath, extensionPath);
+  const database = createStandardSearchFixture("keyset-pagination");
+  // The snapshot says テスト書籍/reviewed=1, while the live DB has changed to
+  // 最新ラベル/reviewed=0. Worker-side snapshot filtering intentionally excludes it.
+  database.prepare("INSERT INTO source_images (id, file_path, file_name, ocr_text, reviewed) VALUES (?, ?, ?, ?, ?)").run(
+    7, "最新ラベル", "001-current.webp", "東京特許許可局", 0,
+  );
+  const search = new OcrSearch({
+    database,
+    japanese: { indexPath, extensionPath, busyTimeoutMs: 500, maxLimit: 10 },
+  });
+  try {
+    const result = await search.searchJapanese({
+      query: fixture.query,
+      mode: "any",
+      label: "最新ラベル",
+      reviewed: false,
+      limit: 1,
+    });
+    assert.equal(result.returned, 0);
+    assert.deepEqual(result.results, []);
   } finally {
     search.close();
     database.close();
@@ -105,8 +153,6 @@ test("Japanese search hydrates current source fields and continues past deleted 
     const result = await search.searchJapanese({
       query: fixture.query,
       mode: "any",
-      label: "最新ラベル",
-      reviewed: false,
       limit: 1,
     });
     // Snapshot row 7 sorts first but has been deleted from source_images. The API

@@ -24,7 +24,11 @@ export {
   SearchWorkerError,
 } from "./errors.js";
 
+export { isReviewed, isReviewedFlag } from "./reviewed.js";
+
 export { assertSearchDatabaseCompatible } from "./testing.js";
 
 export { OcrSearch, createOcrSearch, type JapaneseSearchInput, type JapaneseSearchResult, type OcrSearchOptions } from "./ocr-search.js";
 export type { JapaneseSearchOptions } from "./japanese/repository.js";
+
+export type { OcrSearchHit } from "./types.js";

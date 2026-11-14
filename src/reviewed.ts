@@ -3,9 +3,13 @@ const REVIEWED_COLUMNS = new Set(["si.reviewed", "d.reviewed", "reviewed"] as co
 
 export type ReviewedSqlColumn = "si.reviewed" | "d.reviewed" | "reviewed";
 
-export function isReviewedFlag(value: number | null | undefined): boolean {
+/** Only zero means unreviewed; NULL and every nonzero value are reviewed/protected. */
+export function isReviewed(value: number | null | undefined): boolean {
   return value !== 0;
 }
+
+/** @deprecated Use isReviewed. */
+export const isReviewedFlag = isReviewed;
 
 export function reviewedSqlPredicate(column: ReviewedSqlColumn, reviewed: boolean): string {
   if (!REVIEWED_COLUMNS.has(column)) throw new TypeError("Unsupported reviewed SQL column expression");
