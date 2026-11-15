@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { SearchCancelledError, SearchQueryError, SearchUnavailableError } from "./errors.js";
-import { compileQuery, extractPositiveTerms, parseSearchQuery, SearchQueryValidationError, type QueryNode } from "./query.js";
+import { extractPositiveTerms, parseSearchQuery, SearchQueryValidationError, type QueryNode } from "./query.js";
+import { compileQuery } from "./query-compiler.js";
 import { reviewedSqlPredicate } from "./reviewed.js";
 import type { OcrSearchHit } from "./types.js";
 
@@ -145,7 +146,8 @@ export class StandardSearchRepository {
     }
     const compiled = compileQuery(ast);
     const terms = [...new Set(extractPositiveTerms(ast))];
-    const clauses = [compiled.sql];
+    // NULL OCR text must not satisfy negative-only branches of an OR expression.
+    const clauses = [compiled.sql, "si.ocr_text IS NOT NULL"];
     const params: Array<string | number> = [...compiled.params];
     if (request.label !== undefined) { clauses.push("si.file_path = ?"); params.push(request.label); }
     if (request.reviewed !== undefined) clauses.push(reviewedSqlPredicate("si.reviewed", request.reviewed));

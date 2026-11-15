@@ -56,9 +56,9 @@ const databasePath = join(process.cwd(), "smoke.sqlite");
 const database = new DatabaseSync(databasePath);
 database.exec(
   "CREATE TABLE source_images (id INTEGER PRIMARY KEY, file_path TEXT, file_name TEXT, ocr_text TEXT, reviewed INTEGER);" +
-  "CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, tokenize='trigram');" +
+  "CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, content='source_images', content_rowid='id', tokenize='trigram');" +
   "INSERT INTO source_images VALUES (1, 'smoke', '001.webp', 'alpha package smoke', 0);" +
-  "INSERT INTO images_fts(rowid, ocr_text) VALUES (1, 'alpha package smoke');"
+  "INSERT INTO images_fts(images_fts) VALUES ('rebuild');"
 );
 const search = new OcrSearch({ database });
 const result = await search.search({ query: "alpha", limit: 1 });

@@ -56,6 +56,7 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
     },
   });
   try {
+    await search.ready();
     const result = await search.searchJapanese({
       query: fixture.query,
       mode: "any",
@@ -72,7 +73,15 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
     assert.equal(result.index.indexedAt, fixture.metadata.indexedAt);
     assert.equal(result.index.indexedRecords, 1);
     await assert.rejects(search.searchJapanese({ query: "東京", limit: 21 }), /limit/);
-    await assert.rejects(search.searchJapanese({ query: "😀".repeat(251) }), /500 UTF-16 code units/);
+    await assert.rejects(search.searchJapanese({ query: "😀".repeat(501) }), /500 Unicode code points/);
+    // 251 astral characters are 502 UTF-16 code units but remain within the 500-code-point contract.
+    let rejectedByCodePointLimit = false;
+    try {
+      await search.searchJapanese({ query: "😀".repeat(251) });
+    } catch (error) {
+      rejectedByCodePointLimit = error instanceof Error && error.message.includes("500 Unicode code points");
+    }
+    assert.equal(rejectedByCodePointLimit, false);
   } finally {
     search.close();
     database.close();
@@ -117,6 +126,7 @@ test("Japanese search is disabled unless explicit Worker configuration is suppli
   const database = createStandardSearchFixture("keyset-pagination");
   const search = new OcrSearch({ database });
   try {
+    await assert.doesNotReject(search.ready());
     await assert.rejects(search.searchJapanese({ query: "東京" }), /not enabled/);
   } finally {
     search.close();
@@ -171,4 +181,16 @@ test("Japanese search hydrates current source fields and continues past deleted 
     database.close();
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test("root API exposes the facade and shared errors without internal SQL implementation types", async () => {
+  const api = await import("../src/index.js");
+  assert.equal(typeof api.createOcrSearch, "function");
+  assert.equal(typeof api.OcrSearchError, "function");
+  assert.equal("compileQuery" in api, false);
+  const queryApi = await import("../src/query.js");
+  assert.equal("compileQuery" in queryApi, false);
+  assert.equal("StandardSearchRepository" in api, false);
+  assert.equal("assertSearchDatabaseCompatible" in api, false);
 });

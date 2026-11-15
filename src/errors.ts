@@ -1,31 +1,44 @@
-export class SearchUnavailableError extends Error {
-  readonly code = "SEARCH_UNAVAILABLE";
-  constructor(message = "Search is unavailable", options?: ErrorOptions) {
+export interface OcrSearchErrorOptions extends ErrorOptions {
+  /** Whether retrying the same operation later may succeed. Defaults to false. */
+  retryable?: boolean;
+}
+
+/** Stable base class for every expected OCR-SEARCH failure. */
+export class OcrSearchError extends Error {
+  readonly code: string;
+  readonly retryable: boolean;
+
+  constructor(message: string, code: string, options: OcrSearchErrorOptions = {}) {
     super(message, options);
-    this.name = "SearchUnavailableError";
+    this.name = new.target.name;
+    this.code = code;
+    this.retryable = options.retryable ?? false;
   }
 }
 
-export class SearchCancelledError extends Error {
-  readonly code = "SEARCH_CANCELLED";
+export class SearchUnavailableError extends OcrSearchError {
+  constructor(message = "Search is unavailable", options?: OcrSearchErrorOptions) {
+    super(message, "SEARCH_UNAVAILABLE", options);
+  }
+}
+
+export class SearchCancelledError extends OcrSearchError {
   constructor(message = "Search was cancelled") {
-    super(message);
-    this.name = "SearchCancelledError";
+    super(message, "SEARCH_CANCELLED");
   }
 }
 
-export class SearchQueryError extends Error {
-  readonly code = "SEARCH_QUERY_FAILED";
-  constructor(message = "Search could not be completed", options?: ErrorOptions) {
-    super(message, options);
-    this.name = "SearchQueryError";
+export class SearchQueryError extends OcrSearchError {
+  constructor(message = "Search could not be completed", options?: OcrSearchErrorOptions) {
+    super(message, "SEARCH_QUERY_FAILED", options);
   }
 }
 
-export class SearchWorkerError extends Error {
-  readonly code = "SEARCH_WORKER_FAILED";
-  constructor(message = "Japanese search failed", options?: ErrorOptions) {
-    super(message, options);
-    this.name = "SearchWorkerError";
+export class SearchWorkerError extends OcrSearchError {
+  constructor(message = "Japanese search failed", options?: OcrSearchErrorOptions) {
+    super(message, "SEARCH_WORKER_FAILED", {
+      ...options,
+      retryable: options?.retryable ?? true,
+    });
   }
 }

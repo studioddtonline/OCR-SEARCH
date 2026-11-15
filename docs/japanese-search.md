@@ -103,7 +103,7 @@ When Japanese search is configured, OCR-SEARCH launches one dedicated Worker. Th
 
 ## 5. Search inputs and semantics
 
-- `query` (required): Japanese text, 1–500 UTF-16 code units after trimming.
+- `query` (required): Japanese text, 1–500 Unicode code points after trimming.
 - `mode`: `any` (default) or `all`. `any` ORs searchable Vaporetto tokens for broader recall; `all` requires every searchable token.
 - `label`: optional exact `source_images.file_path` label.
 - `reviewed`: optional review-state filter.
@@ -134,3 +134,8 @@ After rebuilding/replacing the index, restart every consumer process so its Work
 The upstream extension is licensed `MIT OR Apache-2.0`. The `-with-model` release also bundles a model licensed under `BSD-3-Clause`; preserve the upstream license notices beside the installed extension. Source and release assets: https://github.com/hotchpotch/sqlite-vaporetto.
 
 The installer verifies the pinned release SHA-256 before extraction. The Worker loads the extension only from the configured path, validates the index during startup, and disables extension loading after loading the trusted library. The Japanese index is opened read-only by the Worker; only the maintenance builder creates or replaces this snapshot.
+
+
+## Worker 初期化の待機
+
+`OcrSearch.ready()` は、日本語検索を有効にした場合に初回 Worker の Vaporetto model 読み込みと index 検証が完了するまで待機する。日本語検索を無効にしている場合は直ちに resolve する。初期化に失敗した場合は `SearchUnavailableError` で reject する。HTTP server 等は、必要に応じてこの Promise を待ってから readiness を公開できる。

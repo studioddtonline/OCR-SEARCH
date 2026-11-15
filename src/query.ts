@@ -1,3 +1,5 @@
+import { OcrSearchError } from "./errors.js";
+
 /** Maximum complexity accepted for one structured search expression. */
 export const MAX_QUERY_DEPTH = 8;
 export const MAX_QUERY_NODES = 32;
@@ -9,11 +11,9 @@ export type QueryNode =
   | { type: "and" | "or"; nodes: QueryNode[] }
   | { type: "not"; node: QueryNode };
 
-export class SearchQueryValidationError extends Error {
-  readonly code = "SEARCH_QUERY_VALIDATION";
+export class SearchQueryValidationError extends OcrSearchError {
   constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = "SearchQueryValidationError";
+    super(message, "SEARCH_QUERY_VALIDATION", { ...options, retryable: false });
   }
 }
 
@@ -114,38 +114,4 @@ export function extractPositiveTerms(node: QueryNode, negated = false): string[]
     case "or": return node.nodes.flatMap(child => extractPositiveTerms(child, negated));
     case "not": return extractPositiveTerms(node.node, !negated);
   }
-}
-
-export interface CompiledQuery {
-  sql: string;
-  params: Array<string | number>;
-}
-
-export function compileQuery(node: QueryNode): CompiledQuery {
-  switch (node.type) {
-    case "term": return compileTerm(node.value);
-    case "and":
-    case "or": {
-      const children = node.nodes.map(compileQuery);
-      const operator = node.type === "and" ? "AND" : "OR";
-      return {
-        sql: `(${children.map(child => `(${child.sql})`).join(` ${operator} `)})`,
-        params: children.flatMap(child => child.params),
-      };
-    }
-    case "not": {
-      const child = compileQuery(node.node);
-      return { sql: `(NOT (${child.sql}))`, params: child.params };
-    }
-  }
-}
-
-function compileTerm(value: string): CompiledQuery {
-  if (!codePointCountExceeds(value, 2)) {
-    return { sql: "instr(COALESCE(si.ocr_text, ''), ?) > 0", params: [value] };
-  }
-  return {
-    sql: "si.id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?)",
-    params: [`"${value.replaceAll('"', '""')}"`],
-  };
 }
