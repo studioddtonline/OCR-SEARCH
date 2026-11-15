@@ -35,3 +35,25 @@ test("validator rejects missing required columns and non-FTS5 virtual tables", (
   try { assert.throws(() => assertSearchDatabaseCompatible(fts4), /FTS5 virtual table/); }
   finally { fts4.close(); }
 });
+
+
+test("strict test helper validates the external-content rowid mapping", () => {
+  const valid = new DatabaseSync(":memory:");
+  valid.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(
+    ocr_text, CONTENT = "source_images", CONTENT_ROWID = "id", tokenize = 'trigram'
+  );`);
+  try {
+    assert.doesNotThrow(() => assertTrigramSearchDatabaseCompatible(valid));
+  } finally { valid.close(); }
+
+  const invalid = new DatabaseSync(":memory:");
+  invalid.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(
+    ocr_text, content = 'source_images', content_rowid = 'reviewed', tokenize = 'trigram'
+  );`);
+  try {
+    assert.throws(
+      () => assertTrigramSearchDatabaseCompatible(invalid),
+      /content_rowid=id/,
+    );
+  } finally { invalid.close(); }
+});
