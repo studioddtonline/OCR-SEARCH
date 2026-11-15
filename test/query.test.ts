@@ -9,7 +9,7 @@ import {
   parseSearchQuery,
   compileQuery,
   extractPositiveTerms,
-} from "../src/query.js";
+} from "../src/query-compiler.js";
 
 test("parser trims plain text and enforces Unicode code-point length", () => {
   assert.deepEqual(parseSearchQuery("  検索  "), { type: "term", value: "検索" });
