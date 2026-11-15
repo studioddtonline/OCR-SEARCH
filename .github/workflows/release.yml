@@ -42,7 +42,7 @@ jobs:
           npm pack --silent
           PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
           PACKAGE_TARBALL="ocr-search-$PACKAGE_VERSION.tgz"
-          node scripts/verify-package.mjs "$PACKAGE_TARBALL"
+          node .github/scripts/verify-package.mjs "$PACKAGE_TARBALL"
           echo "PACKAGE_TARBALL=$PACKAGE_TARBALL" >> "$GITHUB_ENV"
       - name: Create GitHub Release and upload npm tarball
         uses: softprops/action-gh-release@v2
