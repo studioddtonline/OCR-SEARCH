@@ -17,7 +17,9 @@ test("production validator accepts an FTS5 unicode61 table without assuming trig
 
 test("strict test helper accepts trigram and production validator leaves connection open", () => {
   const db = new DatabaseSync(":memory:");
-  db.exec(source + " CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, tokenize='trigram');");
+  db.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(
+    ocr_text, content='source_images', content_rowid='id', tokenize='trigram'
+  );`);
   try {
     assert.doesNotThrow(() => assertTrigramSearchDatabaseCompatible(db));
     assert.equal((db.prepare("SELECT 1 AS ok").get() as {ok:number}).ok, 1);
