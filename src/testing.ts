@@ -42,4 +42,9 @@ export function assertTrigramSearchDatabaseCompatible(db: DatabaseSync): void {
   if (!row?.sql || !/\btokenize\s*=\s*['"]trigram['"]/i.test(row.sql)) {
     throw new SearchUnavailableError("Regression database must use the FTS5 trigram tokenizer.");
   }
+  const contentMatches = /\bcontent\s*=\s*(['"])source_images\1/i.test(row.sql);
+  const rowidMatches = /\bcontent_rowid\s*=\s*(['"])id\1/i.test(row.sql);
+  if (!contentMatches || !rowidMatches) {
+    throw new SearchUnavailableError("Regression database must use source_images with content_rowid=id.");
+  }
 }
