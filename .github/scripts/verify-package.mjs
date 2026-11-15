@@ -24,6 +24,13 @@ const archive = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" }).spl
 for (const file of requiredFiles) {
   assert.ok(archive.includes(file), `Packed package is missing ${file}`);
 }
+assert.ok(!archive.some((file) => file.endsWith(".map")), "Package tarball must not contain sourcemaps");
+for (const forbidden of [
+  "package/scripts/clean-dist.mjs",
+  "package/scripts/copy-runtime-assets.mjs",
+]) {
+  assert.ok(!archive.includes(forbidden), `Build-only script must not be packed: ${forbidden}`);
+}
 
 const installDir = mkdtempSync(join(tmpdir(), "ocr-search-package-smoke-"));
 try {
