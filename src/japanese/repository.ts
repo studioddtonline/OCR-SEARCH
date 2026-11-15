@@ -1,6 +1,6 @@
 import { accessSync, constants } from "node:fs";
 import { Worker, type WorkerOptions } from "node:worker_threads";
-import { SearchUnavailableError, SearchWorkerError } from "../errors.js";
+import { SearchCancelledError, SearchUnavailableError, SearchWorkerError } from "../errors.js";
 import { WorkerHost, type WorkerGeneration, type WorkerHostFailure, type WorkerThreadLike } from "../worker-host.js";
 
 export interface JapaneseSearchOptions {
@@ -97,6 +97,7 @@ function assertNever(value: never): never {
  */
 export class JapaneseSearchRepository {
   private readonly workerHost: WorkerHost<WorkerMessage, WorkerMetadata>;
+  private readonly initialReady: Promise<void>;
   private readonly queue: QueuedSearch[] = [];
   private active: QueuedSearch | undefined;
   private nextId = 1;
@@ -125,6 +126,18 @@ export class JapaneseSearchRepository {
       onTerminationError: (_generation, error) => options.log?.("[japanese-search] worker termination failed:", error),
     });
     this.startWorker();
+    const initialGeneration = this.workerHost.current!;
+    this.initialReady = initialGeneration.ready.then(
+      () => undefined,
+      (cause: unknown) => {
+        throw new SearchUnavailableError("Japanese search Worker failed to initialize.", {
+          cause,
+          retryable: false,
+        });
+      },
+    );
+    // A consumer may choose not to await ready(); prevent an unhandled rejection.
+    void this.initialReady.catch(() => undefined);
   }
 
   /** Check the configured files cheaply; the native extension and index are initialized and validated in the worker. */
@@ -138,9 +151,14 @@ export class JapaneseSearchRepository {
     return new JapaneseSearchRepository(options);
   }
 
+  /** Resolve after the initial Worker has loaded and validated its index. */
+  ready(): Promise<void> {
+    return this.initialReady;
+  }
+
   search(request: JapaneseSearchRequest, signal?: AbortSignal): Promise<unknown> {
-    if (this.closed) return Promise.reject(new SearchWorkerError("Japanese search is unavailable."));
-    if (signal?.aborted) return Promise.reject(new SearchWorkerError("Japanese search was cancelled."));
+    if (this.closed) return Promise.reject(new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
+    if (signal?.aborted) return Promise.reject(new SearchCancelledError());
     if (this.queue.length + (this.active ? 1 : 0) >= MAX_PENDING_REQUESTS) {
       return Promise.reject(new SearchWorkerError("Japanese search is busy; retry after current searches finish."));
     }
@@ -166,14 +184,14 @@ export class JapaneseSearchRepository {
     const lifecycle = this.state.lifecycle;
     if (lifecycle.kind === "backoff") clearTimeout(lifecycle.timer);
     this.state.lifecycle = { kind: "closed" };
-    if (this.active) this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable."));
+    if (this.active) this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
     for (const entry of this.queue.splice(0)) {
-      this.finishEntry(entry, undefined, new SearchWorkerError("Japanese search is unavailable."));
+      this.finishEntry(entry, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
     }
     const generation = this.workerHost.current;
     this.active = undefined;
     if (generation) {
-      void this.workerHost.terminate(generation, new SearchWorkerError("Japanese search is unavailable.")).catch((error) => {
+      void this.workerHost.terminate(generation, new SearchWorkerError("Japanese search is unavailable.", { retryable: false })).catch((error) => {
         this.options.log?.("[japanese-search] worker termination failed:", error);
       });
     }
@@ -232,7 +250,7 @@ export class JapaneseSearchRepository {
     } catch (error) {
       // A failed generation has already been detached and its failure policy has run.
       if (!this.workerHost.isCurrent(generation)) return;
-      this.failQueued(error instanceof Error ? error : new SearchWorkerError("Japanese search is unavailable."));
+      this.failQueued(error instanceof Error ? error : new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
       return;
     }
     if (this.closed || this.active || this.queue.length === 0 || !this.workerHost.isCurrent(generation)) return;
@@ -284,10 +302,10 @@ export class JapaneseSearchRepository {
         this.options.log?.("[japanese-search] worker termination failed:", error);
       });
       if (this.active) {
-        this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable."));
+        this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
         this.active = undefined;
       }
-      this.failQueued(new SearchWorkerError("Japanese search is unavailable."));
+      this.failQueued(new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
       return;
     }
     if (message.type === "started") {
@@ -307,7 +325,7 @@ export class JapaneseSearchRepository {
     } else {
       if (message.operatorMessage) this.options.log?.("[japanese-search] query failed:", message.operatorMessage);
       if (message.code === "no_searchable_tokens") {
-        this.finishEntry(active, undefined, new SearchWorkerError("The tokenizer produced no searchable tokens for this query."));
+        this.finishEntry(active, undefined, new SearchWorkerError("The tokenizer produced no searchable tokens for this query.", { retryable: false }));
       } else {
         this.finishEntry(active, undefined, new SearchWorkerError("Japanese search failed; check the server log and rebuild the index if needed."));
       }
@@ -335,10 +353,10 @@ export class JapaneseSearchRepository {
     if (failure.type === "startup-timeout") {
       this.state.lifecycle = { kind: "dead", reason: "startup" };
       if (this.active) {
-        this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable."));
+        this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
         this.active = undefined;
       }
-      this.failQueued(new SearchWorkerError("Japanese search is unavailable."));
+      this.failQueued(new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
       // WorkerHost already initiates termination for startup-timeout failures.
       return;
     }
@@ -410,7 +428,7 @@ export class JapaneseSearchRepository {
         attempts: restartAttempts,
         maxAttempts,
       });
-      this.failQueued(new SearchWorkerError("Japanese search is unavailable after repeated worker failures; restart the server."));
+      this.failQueued(new SearchWorkerError("Japanese search is unavailable after repeated worker failures; restart the server.", { retryable: false }));
       return;
     }
 

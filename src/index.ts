@@ -4,20 +4,13 @@ export {
   MAX_QUERY_NODES,
   MAX_QUERY_TERM_CODE_POINTS,
   SearchQueryValidationError,
-  compileQuery,
   extractPositiveTerms,
   parseSearchQuery,
-  type CompiledQuery,
   type QueryNode,
 } from "./query.js";
+
 export {
-  StandardSearchRepository,
-  type StandardSearchHit,
-  type StandardSearchOptions,
-  type StandardSearchRequest,
-  type StandardSearchResult,
-} from "./standard-search.js";
-export {
+  OcrSearchError,
   SearchCancelledError,
   SearchQueryError,
   SearchUnavailableError,
@@ -26,9 +19,6 @@ export {
 
 export { isReviewed, isReviewedFlag } from "./reviewed.js";
 
-export { assertSearchDatabaseCompatible } from "./testing.js";
-
 export { OcrSearch, createOcrSearch, type JapaneseSearchInput, type JapaneseSearchResult, type OcrSearchOptions } from "./ocr-search.js";
 export type { JapaneseSearchOptions } from "./japanese/repository.js";
-
 export type { OcrSearchHit } from "./types.js";

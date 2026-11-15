@@ -102,3 +102,30 @@ test("standard search checks AbortSignal before running the synchronous query", 
     await assert.rejects(repository.search({ query: "sample" }, controller.signal), SearchCancelledError);
   } finally { repository.close(); db.close(); }
 });
+
+
+test("standard search excludes NULL OCR text from negative branches", async () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(readFileSync(resolve(root, "test/fixtures/ocr-search-schema.sql"), "utf8"));
+  const insert = db.prepare("INSERT INTO source_images (id, file_path, file_name, ocr_text, reviewed) VALUES (?, ?, ?, ?, ?)");
+  insert.run(1, "Book", "001.webp", "alpha appears here", 0);
+  insert.run(2, "Book", "002.webp", null, 0);
+  insert.run(3, "Book", "003.webp", "beta appears here", 0);
+  db.exec("INSERT INTO images_fts(images_fts) VALUES ('rebuild')");
+  const repository = new StandardSearchRepository(db);
+  try {
+    const result = await repository.search({
+      query: {
+        type: "or",
+        nodes: [
+          { type: "term", value: "alpha" },
+          { type: "not", node: { type: "term", value: "beta" } },
+        ],
+      },
+    });
+    assert.deepEqual(result.results.map((row) => row.id), [1]);
+  } finally {
+    repository.close();
+    db.close();
+  }
+});

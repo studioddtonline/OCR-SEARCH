@@ -21,8 +21,14 @@ export function assertSearchDatabaseCompatible(db: DatabaseSync): void {
   if (missing.length) {
     throw new SearchUnavailableError(`source_images is missing required column(s): ${missing.join(", ")}.`);
   }
-  if (!/^\s*CREATE\s+VIRTUAL\s+TABLE\b[\s\S]*?\bUSING\s+fts5\b/i.test(definitions.get("images_fts")!)) {
+  const ftsSql = definitions.get("images_fts")!;
+  if (!/^\s*CREATE\s+VIRTUAL\s+TABLE\b[\s\S]*?\bUSING\s+fts5\b/i.test(ftsSql)) {
     throw new SearchUnavailableError("images_fts must be an FTS5 virtual table.");
+  }
+  const externalContentMatches = /\bcontent\s*=\s*(['"])source_images\1/i.test(ftsSql);
+  const rowidMatches = /\bcontent_rowid\s*=\s*(['"])id\1/i.test(ftsSql);
+  if (!externalContentMatches || !rowidMatches) {
+    throw new SearchUnavailableError("images_fts must use external content source_images with content_rowid=id.");
   }
   try {
     db.prepare(MATCH_PROBE_SQL).get('"abc"');
@@ -41,10 +47,5 @@ export function assertTrigramSearchDatabaseCompatible(db: DatabaseSync): void {
     | { sql: string | null } | undefined;
   if (!row?.sql || !/\btokenize\s*=\s*['"]trigram['"]/i.test(row.sql)) {
     throw new SearchUnavailableError("Regression database must use the FTS5 trigram tokenizer.");
-  }
-  const contentMatches = /\bcontent\s*=\s*(['"])source_images\1/i.test(row.sql);
-  const rowidMatches = /\bcontent_rowid\s*=\s*(['"])id\1/i.test(row.sql);
-  if (!contentMatches || !rowidMatches) {
-    throw new SearchUnavailableError("Regression database must use source_images with content_rowid=id.");
   }
 }

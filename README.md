@@ -13,8 +13,8 @@
 - 標準検索 AST parser / iterative validation / SQL compiler（短語 `instr()`、長語 FTS5 trigram）
 - 標準検索 repository、snippet、pagination、64件 LRU prepared-statement cache
 - `reviewed=0` のみ未レビューとする共有 semantics
-- Production DB contract validator と test-only strict trigram validator
-- 統合 API `OcrSearch` / `createOcrSearch()`
+- Production DB contract validator（FTS5 external-content mapping 検証）と test-only strict trigram validator
+- 統合 API `OcrSearch` / `createOcrSearch()` / 初期化待機 `ready()`
 - Standard / Japanese 共通の検索結果フィールド（`id` / `label` / `fileName` / `reviewed` / `snippet`）
 - Browser-safe subpath exports: `ocr-search/query`、`ocr-search/reviewed`、`ocr-search/types`
 - Vaporetto 日本語検索 Worker、FIFO queue、cancel、queue/execution/startup timeout、bounded restart
@@ -111,6 +111,7 @@ const search = new OcrSearch({
     maxLimit: 20,
   },
 });
+await search.ready(); // Japanese Worker の初期化・index 検証完了を待つ
 const result = await search.searchJapanese({ query: "吾輩は猫である", mode: "any" });
 ```
 
@@ -129,10 +130,10 @@ CLI は consumer 固有 config を暗黙に読み込まない。DB、index、ext
 
 ## npm / GitHub Release
 
-consumer application からは、GitHub Release の tarball を依存として直接追加する。v0.2.0 の Release 作成後は、例えば次のコマンドで導入できる。
+consumer application からは、GitHub Release の tarball を依存として直接追加する。v0.3.0 の Release 作成後は、例えば次のコマンドで導入できる。
 
 ```sh
-npm install --save https://github.com/studioddtonline/OCR-SEARCH/releases/download/v0.2.0/ocr-search-0.2.0.tgz
+npm install --save https://github.com/studioddtonline/OCR-SEARCH/releases/download/v0.3.0/ocr-search-0.3.0.tgz
 ```
 
 npm 12 で remote tarball の許可が必要な場合は、consumer 側の `.npmrc` に `allow-remote=root` を設定する（環境によっては `all`）。npm install を実行せずに手動導入する場合も、同じ tarball URL を `package.json` の `dependencies.ocr-search` に指定できる。

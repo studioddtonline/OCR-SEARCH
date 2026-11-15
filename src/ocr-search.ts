@@ -63,6 +63,12 @@ export class OcrSearch {
     }
   }
 
+  /** Resolve when the optional Japanese Worker has completed its initial startup. */
+  ready(): Promise<void> {
+    if (this.closed) return Promise.reject(new SearchUnavailableError("Search instance is closed."));
+    return this.japanese?.ready() ?? Promise.resolve();
+  }
+
   search(request: StandardSearchRequest, signal?: AbortSignal): Promise<StandardSearchResult> {
     if (this.closed) return Promise.reject(new SearchUnavailableError("Search instance is closed."));
     return this.standard.search(request, signal);
@@ -78,8 +84,11 @@ export class OcrSearch {
       throw new SearchQueryValidationError("Japanese search query must not be empty.");
     }
     const query = input.query.trim();
-    if (query.length > 500) {
-      throw new SearchQueryValidationError("Japanese search query must contain at most 500 UTF-16 code units.");
+    let queryCodePoints = 0;
+    for (const _character of query) {
+      if (++queryCodePoints > 500) {
+        throw new SearchQueryValidationError("Japanese search query must contain at most 500 Unicode code points.");
+      }
     }
     const mode = input.mode ?? "any";
     if (mode !== "any" && mode !== "all") {
