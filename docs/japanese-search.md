@@ -34,7 +34,7 @@ npm run japanese-index -- \
 
 Optional: `--busy-timeout-ms=500` (integer 0–120000).
 
-The builder opens the source OCR database read-only, validates the required `source_images` columns, and copies the current read snapshot into a staging SQLite database. It tokenizes each OCR text with Vaporetto and inserts the terms into a contentless FTS5 table using `unicode61`. Original OCR text and review metadata are copied into `japanese_documents` for search results and snippets; the FTS table stores the search index. The source database is never modified.
+The builder opens the source OCR database read-only, validates the required `source_images` columns, and copies the current read snapshot into a staging SQLite database. It tokenizes each OCR text with Vaporetto and inserts the terms into a contentless FTS5 table using `unicode61`. Schema v2 copies OCR text and review metadata into `japanese_documents` as snapshot fields; the FTS table stores the tokenized search index. The Worker can produce a snapshot-based snippet, but the unified `OcrSearch` facade builds the public result snippet from the current OCR text hydrated from `source_images`. The source database is never modified.
 
 The build is an offline maintenance operation. It can consume CPU and take time on a large OCR collection; progress is printed every 1,000 records. The source reader holds a consistent read snapshot while copying. With rollback-journal mode, that snapshot may delay concurrent source writes, so run the initial build/rebuild when the OCR writer is idle.
 

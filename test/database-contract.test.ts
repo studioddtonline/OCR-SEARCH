@@ -17,7 +17,9 @@ test("production validator accepts an FTS5 unicode61 table without assuming trig
 
 test("strict test helper accepts trigram and production validator leaves connection open", () => {
   const db = new DatabaseSync(":memory:");
-  db.exec(source + " CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, tokenize='trigram');");
+  db.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(
+    ocr_text, content='source_images', content_rowid='id', tokenize='trigram'
+  );`);
   try {
     assert.doesNotThrow(() => assertTrigramSearchDatabaseCompatible(db));
     assert.equal((db.prepare("SELECT 1 AS ok").get() as {ok:number}).ok, 1);
@@ -34,4 +36,26 @@ test("validator rejects missing required columns and non-FTS5 virtual tables", (
   fts4.exec(source + " CREATE VIRTUAL TABLE images_fts USING fts4(ocr_text);");
   try { assert.throws(() => assertSearchDatabaseCompatible(fts4), /FTS5 virtual table/); }
   finally { fts4.close(); }
+});
+
+
+test("strict test helper validates the external-content rowid mapping", () => {
+  const valid = new DatabaseSync(":memory:");
+  valid.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(
+    ocr_text, CONTENT = "source_images", CONTENT_ROWID = "id", tokenize = 'trigram'
+  );`);
+  try {
+    assert.doesNotThrow(() => assertTrigramSearchDatabaseCompatible(valid));
+  } finally { valid.close(); }
+
+  const invalid = new DatabaseSync(":memory:");
+  invalid.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(
+    ocr_text, content = 'source_images', content_rowid = 'reviewed', tokenize = 'trigram'
+  );`);
+  try {
+    assert.throws(
+      () => assertTrigramSearchDatabaseCompatible(invalid),
+      /content_rowid=id/,
+    );
+  } finally { invalid.close(); }
 });

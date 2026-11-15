@@ -32,7 +32,11 @@ test("Japanese index builder creates a schema-v2 snapshot from the source databa
       assert.equal(metadata?.tokenizer, "vaporetto-pretokenized-unicode61");
       assert.equal(metadata?.source_record_count, index.prepare("SELECT COUNT(*) AS count FROM japanese_documents").get()?.count);
       const fts = index.prepare("SELECT sql FROM sqlite_master WHERE name = 'japanese_fts'").get()?.sql;
-      assert.match(fts ?? "", /content=''[\s\S]*tokenize='unicode61'/);
+      assert.equal(typeof fts, "string");
+      if (typeof fts !== "string") {
+        throw new TypeError("Expected japanese_fts DDL to be a string.");
+      }
+      assert.match(fts, /content\s*=\s*''[\s\S]*tokenize\s*=\s*'unicode61'/i);
     } finally {
       index.close();
     }

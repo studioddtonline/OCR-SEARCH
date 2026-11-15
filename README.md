@@ -24,9 +24,9 @@
 - 日本語 Worker source equivalence、Worker lifecycle、BM25 ranking、index replacement tests
 - CLI の標準検索と明示 opt-in の日本語検索
 - package-lock.json（lockfileVersion 3）
-- GitHub Actions: Node.js 22.16.0 / 24.x、native extension、typecheck、39 tests、build、npm pack / temporary install / API import / CLI smoke test
+- GitHub Actions: Node.js 22.16.0 / 24.x、native extension、source/test typecheck、regression tests、build、npm pack / temporary install / API import / CLI smoke test
 
-**未完了:** 日本語検索結果のsource DB hydrate（snapshot freshness改善）、package licenseの選定、OCR-MCP-SERVER / BOOK-OCR Web UI consumer接続。licenseは選定中のため `private: true` を維持する。
+**未完了:** package licenseの選定、OCR-MCP-SERVER / BOOK-OCR Web UI consumer接続。licenseは選定中のため `private: true` を維持する。
 
 ## 開発環境
 
@@ -75,7 +75,13 @@ import {
 import { isReviewed } from "ocr-search/reviewed";
 import type { OcrSearchHit } from "ocr-search/types";
 
-const ast: QueryNode = parseSearchQuery('猫 AND (東京 OR 京都)');
+const ast: QueryNode = parseSearchQuery({
+  type: "and",
+  nodes: [
+    { type: "term", value: "猫" },
+    { type: "or", nodes: [{ type: "term", value: "東京" }, { type: "term", value: "京都" }] },
+  ],
+});
 const terms = extractPositiveTerms(ast);
 const protectedRecord = isReviewed(null); // true: NULL は未レビュー扱いにしない
 const hit: OcrSearchHit | undefined = undefined;

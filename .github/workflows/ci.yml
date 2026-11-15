@@ -44,37 +44,4 @@ jobs:
           npm pack --silent
           PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
           PACKAGE_TARBALL="ocr-search-$PACKAGE_VERSION.tgz"
-          tar -tzf "$PACKAGE_TARBALL" > pack-files.txt
-          for required in package/dist/cli.js package/dist/japanese/worker.mjs package/dist/reviewed.mjs package/dist/query.js package/dist/reviewed.js package/dist/types.js package/dist/types.d.ts package/NOTICE; do
-            grep -Fxq "$required" pack-files.txt || { echo "Packed package is missing $required" >&2; exit 1; }
-          done
-          TEMP_INSTALL="$(mktemp -d)"
-          trap 'rm -rf "$TEMP_INSTALL"' EXIT
-          npm install --prefix "$TEMP_INSTALL" --no-save "$PWD/$PACKAGE_TARBALL"
-          (
-          cd "$TEMP_INSTALL"
-          node --input-type=module <<'NODE'
-          import assert from "node:assert/strict";
-          import { DatabaseSync } from "node:sqlite";
-          import { OcrSearch } from "ocr-search";
-          import { parseSearchQuery } from "ocr-search/query";
-          import { isReviewed } from "ocr-search/reviewed";
-          assert.equal(parseSearchQuery("alpha").type, "term");
-          assert.equal(isReviewed(null), true);
-          const database = new DatabaseSync(":memory:");
-          database.exec(`
-            CREATE TABLE source_images (
-              id INTEGER PRIMARY KEY, file_path TEXT, file_name TEXT, ocr_text TEXT, reviewed INTEGER
-            );
-            CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, tokenize='trigram');
-            INSERT INTO source_images VALUES (1, 'smoke', '001.webp', 'alpha package smoke', 0);
-            INSERT INTO images_fts(rowid, ocr_text) VALUES (1, 'alpha package smoke');
-          `);
-          const search = new OcrSearch({ database });
-          const result = await search.search({ query: "alpha", limit: 1 });
-          assert.equal(result.results[0]?.id, 1);
-          search.close();
-          database.close();
-          NODE
-          ./node_modules/.bin/ocr-search help
-          )
+          node .github/scripts/verify-package.mjs "$PACKAGE_TARBALL"
