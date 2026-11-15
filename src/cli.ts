@@ -122,7 +122,7 @@ async function main() {
           limit,
           offset,
         });
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\\n`);
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } finally {
     search?.close();
     database.close();
