@@ -44,4 +44,4 @@ jobs:
           npm pack --silent
           PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
           PACKAGE_TARBALL="ocr-search-$PACKAGE_VERSION.tgz"
-          node scripts/verify-package.mjs "$PACKAGE_TARBALL"
+          node .github/scripts/verify-package.mjs "$PACKAGE_TARBALL"
