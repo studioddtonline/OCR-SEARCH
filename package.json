@@ -33,10 +33,13 @@
   },
   "files": [
     "dist",
-    "scripts",
+    "scripts/build-japanese-index.mjs",
+    "scripts/check-sqlite-vaporetto.mjs",
+    "scripts/install-sqlite-vaporetto.sh",
     "README.md",
     "DESIGN.md",
-    "NOTICE"
+    "NOTICE",
+    "docs"
   ],
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",
