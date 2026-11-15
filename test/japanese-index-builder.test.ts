@@ -36,7 +36,7 @@ test("Japanese index builder creates a schema-v2 snapshot from the source databa
       if (typeof fts !== "string") {
         throw new TypeError("Expected japanese_fts DDL to be a string.");
       }
-      assert.match(fts, /content=''[\\s\\S]*tokenize='unicode61'/);
+      assert.match(fts, /content\s*=\s*''[\s\S]*tokenize\s*=\s*'unicode61'/i);
     } finally {
       index.close();
     }
