@@ -40,7 +40,7 @@
   ],
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/copy-runtime-assets.mjs",
     "prepack": "npm run build",
     "test": "tsx --test \"test/**/*.test.ts\"",
