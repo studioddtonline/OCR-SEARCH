@@ -1,3 +1,5 @@
+import { OcrSearchError } from "./errors.js";
+
 /** Maximum complexity accepted for one structured search expression. */
 export const MAX_QUERY_DEPTH = 8;
 export const MAX_QUERY_NODES = 32;
@@ -8,8 +10,6 @@ export type QueryNode =
   | { type: "term"; value: string }
   | { type: "and" | "or"; nodes: QueryNode[] }
   | { type: "not"; node: QueryNode };
-
-import { OcrSearchError } from "./errors.js";
 
 export class SearchQueryValidationError extends OcrSearchError {
   constructor(message: string, options?: ErrorOptions) {

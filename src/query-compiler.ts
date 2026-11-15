@@ -1,5 +1,13 @@
 import type { QueryNode } from "./query.js";
 
+function codePointCountExceeds(value: string, maximum: number): boolean {
+  let count = 0;
+  for (const _character of value) {
+    if (++count > maximum) return true;
+  }
+  return false;
+}
+
 export interface CompiledQuery {
   sql: string;
   params: Array<string | number>;

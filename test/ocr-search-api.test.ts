@@ -75,10 +75,13 @@ test("OcrSearch delegates Japanese search to the isolated Vaporetto Worker", {
     await assert.rejects(search.searchJapanese({ query: "東京", limit: 21 }), /limit/);
     await assert.rejects(search.searchJapanese({ query: "😀".repeat(501) }), /500 Unicode code points/);
     // 251 astral characters are 502 UTF-16 code units but remain within the 500-code-point contract.
-    await assert.rejects(
-      search.searchJapanese({ query: "😀".repeat(251) }),
-      (error) => !(error instanceof Error && error.message.includes("500 Unicode code points")),
-    );
+    let rejectedByCodePointLimit = false;
+    try {
+      await search.searchJapanese({ query: "😀".repeat(251) });
+    } catch (error) {
+      rejectedByCodePointLimit = error instanceof Error && error.message.includes("500 Unicode code points");
+    }
+    assert.equal(rejectedByCodePointLimit, false);
   } finally {
     search.close();
     database.close();
@@ -186,6 +189,8 @@ test("root API exposes the facade and shared errors without internal SQL impleme
   assert.equal(typeof api.createOcrSearch, "function");
   assert.equal(typeof api.OcrSearchError, "function");
   assert.equal("compileQuery" in api, false);
+  const queryApi = await import("../src/query.js");
+  assert.equal("compileQuery" in queryApi, false);
   assert.equal("StandardSearchRepository" in api, false);
   assert.equal("assertSearchDatabaseCompatible" in api, false);
 });

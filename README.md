@@ -87,7 +87,7 @@ const protectedRecord = isReviewed(null); // true: NULL は未レビュー扱い
 const hit: OcrSearchHit | undefined = undefined;
 ```
 
-`ocr-search/query` は純粋なJavaScriptロジックのみを公開する。`compileQuery()` も同じsubpathからexportされるが、SQLを生成するためブラウザUIではなくNode.js側で使用する。`ocr-search/reviewed` は `isReviewed()` を公開し、`ocr-search/types` はNode.js依存を持たない共通結果型を公開する。従来の `isReviewedFlag()` は互換性のため残している。
+`ocr-search/query` は純粋なJavaScriptロジックのみを公開する。SQL compiler は内部実装として扱い、このsubpathからは公開しない。`ocr-search/reviewed` は `isReviewed()` を公開し、`ocr-search/types` はNode.js依存を持たない共通結果型を公開する。従来の `isReviewedFlag()` は互換性のため残している。
 
 Standard / Japanese の検索結果は共通フィールド `id`、`label`、`fileName`、`reviewed`、`snippet` を持つ。Japanese 検索結果のみ、BM25値の `score` が追加される。
 

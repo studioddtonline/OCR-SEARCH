@@ -211,7 +211,7 @@ export class JapaneseSearchRepository {
       case "dead":
         this.failQueued(new SearchWorkerError(lifecycle.reason === "retry-exhausted"
           ? "Japanese search is unavailable after repeated worker failures; restart the server."
-          : "Japanese search is unavailable."));
+          : "Japanese search is unavailable.", { retryable: false }));
         return;
       case "closed":
       case "terminating":
@@ -258,7 +258,7 @@ export class JapaneseSearchRepository {
     let entry: QueuedSearch | undefined;
     while ((entry = this.queue.shift())) {
       if (entry.signal?.aborted) {
-        this.finishEntry(entry, undefined, new SearchWorkerError("Japanese search was cancelled."));
+        this.finishEntry(entry, undefined, new SearchCancelledError());
         continue;
       }
       break;
@@ -514,13 +514,13 @@ export class JapaneseSearchRepository {
         entry.abortListener = undefined;
       }
       entry.settled = true;
-      entry.reject(new SearchWorkerError("Japanese search was cancelled."));
+      entry.reject(new SearchCancelledError());
       return;
     }
     const index = this.queue.indexOf(entry);
     if (index >= 0) {
       this.queue.splice(index, 1);
-      this.finishEntry(entry, undefined, new SearchWorkerError("Japanese search was cancelled."));
+      this.finishEntry(entry, undefined, new SearchCancelledError());
       this.pump();
     }
   }
