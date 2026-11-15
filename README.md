@@ -75,7 +75,13 @@ import {
 import { isReviewed } from "ocr-search/reviewed";
 import type { OcrSearchHit } from "ocr-search/types";
 
-const ast: QueryNode = parseSearchQuery({\n  type: "and",\n  nodes: [\n    { type: "term", value: "猫" },\n    { type: "or", nodes: [{ type: "term", value: "東京" }, { type: "term", value: "京都" }] },\n  ],\n});
+const ast: QueryNode = parseSearchQuery({
+  type: "and",
+  nodes: [
+    { type: "term", value: "猫" },
+    { type: "or", nodes: [{ type: "term", value: "東京" }, { type: "term", value: "京都" }] },
+  ],
+});
 const terms = extractPositiveTerms(ast);
 const protectedRecord = isReviewed(null); // true: NULL は未レビュー扱いにしない
 const hit: OcrSearchHit | undefined = undefined;
