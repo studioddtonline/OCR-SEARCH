@@ -48,3 +48,36 @@ test("CLI search writes one valid JSON document to stdout", () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test("CLI help is written to stdout with a successful exit code", () => {
+  const result = spawnSync(process.execPath, [
+    "--import", "tsx",
+    resolve(root, "src/cli.ts"),
+    "--help",
+  ], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /OCR-SEARCH CLI/);
+});
+
+test("CLI without arguments writes usage to stderr and exits with code 2", () => {
+  const result = spawnSync(process.execPath, [
+    "--import", "tsx",
+    resolve(root, "src/cli.ts"),
+  ], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /OCR-SEARCH CLI/);
+});
+
+test("CLI rejects unknown options instead of silently ignoring them", () => {
+  const result = spawnSync(process.execPath, [
+    "--import", "tsx",
+    resolve(root, "src/cli.ts"),
+    "search",
+    "--lable=typo",
+  ], { cwd: root, encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /unknown option/i);
+});
