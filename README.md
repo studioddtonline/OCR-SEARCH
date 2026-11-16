@@ -111,7 +111,7 @@ const search = new OcrSearch({
     maxLimit: 20,
   },
 });
-await search.ready(); // Japanese Worker の初期化・index 検証完了を待つ
+await search.ready(); // Japanese Worker が利用可能になるまで待つ（起動失敗時は既存の再起動上限内で復旧を試行）
 const result = await search.searchJapanese({ query: "吾輩は猫である", mode: "any" });
 ```
 

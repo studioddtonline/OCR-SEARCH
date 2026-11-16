@@ -1,6 +1,6 @@
 {
   "name": "ocr-search",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Shared OCR search engine for Node.js consumers",
   "type": "module",
@@ -39,7 +39,8 @@
     "README.md",
     "DESIGN.md",
     "NOTICE",
-    "docs"
+    "CHANGELOG.md",
+    "docs/japanese-search.md"
   ],
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",

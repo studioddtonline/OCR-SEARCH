@@ -97,7 +97,7 @@ function assertNever(value: never): never {
  */
 export class JapaneseSearchRepository {
   private readonly workerHost: WorkerHost<WorkerMessage, WorkerMetadata>;
-  private readonly initialReady: Promise<void>;
+  private readonly readyWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>();
   private readonly queue: QueuedSearch[] = [];
   private active: QueuedSearch | undefined;
   private nextId = 1;
@@ -126,18 +126,6 @@ export class JapaneseSearchRepository {
       onTerminationError: (_generation, error) => options.log?.("[japanese-search] worker termination failed:", error),
     });
     this.startWorker();
-    const initialGeneration = this.workerHost.current!;
-    this.initialReady = initialGeneration.ready.then(
-      () => undefined,
-      (cause: unknown) => {
-        throw new SearchUnavailableError("Japanese search Worker failed to initialize.", {
-          cause,
-          retryable: false,
-        });
-      },
-    );
-    // A consumer may choose not to await ready(); prevent an unhandled rejection.
-    void this.initialReady.catch(() => undefined);
   }
 
   /** Check the configured files cheaply; the native extension and index are initialized and validated in the worker. */
@@ -151,9 +139,41 @@ export class JapaneseSearchRepository {
     return new JapaneseSearchRepository(options);
   }
 
-  /** Resolve after the initial Worker has loaded and validated its index. */
+  /** Resolve when a ready Worker is available; this demand also drives bounded recovery. */
   ready(): Promise<void> {
-    return this.initialReady;
+    if (this.closed) return Promise.reject(new SearchUnavailableError("Japanese search is unavailable.", { retryable: false }));
+    const generation = this.workerHost.current;
+    if (generation && this.workerHost.hasReachedReady(generation)) return Promise.resolve();
+    if (this.state.lifecycle.kind === "dead") {
+      return Promise.reject(new SearchUnavailableError("Japanese search is unavailable after Worker startup failed.", { retryable: false }));
+    }
+
+    return new Promise((resolve, reject) => {
+      this.readyWaiters.add({ resolve: () => resolve(), reject });
+      this.ensureReadyDemand();
+    });
+  }
+
+  private hasDemand(): boolean {
+    return this.queue.length > 0 || this.readyWaiters.size > 0;
+  }
+
+  private ensureReadyDemand(): void {
+    if (!this.hasDemand() || this.closed) return;
+    const lifecycle = this.state.lifecycle;
+    if (lifecycle.kind === "idle" && !this.workerHost.current) {
+      this.scheduleWorkerRestart("ready() is waiting for a Worker", undefined, lifecycle.startupFailurePending);
+    }
+  }
+
+  private resolveReadyWaiters(): void {
+    for (const waiter of this.readyWaiters) waiter.resolve();
+    this.readyWaiters.clear();
+  }
+
+  private rejectReadyWaiters(error: Error): void {
+    for (const waiter of this.readyWaiters) waiter.reject(error);
+    this.readyWaiters.clear();
   }
 
   search(request: JapaneseSearchRequest, signal?: AbortSignal): Promise<unknown> {
@@ -184,6 +204,7 @@ export class JapaneseSearchRepository {
     const lifecycle = this.state.lifecycle;
     if (lifecycle.kind === "backoff") clearTimeout(lifecycle.timer);
     this.state.lifecycle = { kind: "closed" };
+    this.rejectReadyWaiters(new SearchUnavailableError("Japanese search is unavailable because the repository is closed.", { retryable: false }));
     if (this.active) this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
     for (const entry of this.queue.splice(0)) {
       this.finishEntry(entry, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
@@ -208,11 +229,14 @@ export class JapaneseSearchRepository {
     const lifecycle = this.state.lifecycle;
     if (this.state.pumping || this.active || this.queue.length === 0) return;
     switch (lifecycle.kind) {
-      case "dead":
-        this.failQueued(new SearchWorkerError(lifecycle.reason === "retry-exhausted"
+      case "dead": {
+        const unavailable = new SearchWorkerError(lifecycle.reason === "retry-exhausted"
           ? "Japanese search is unavailable after repeated worker failures; restart the server."
-          : "Japanese search is unavailable.", { retryable: false }));
+          : "Japanese search is unavailable.", { retryable: false });
+        this.failQueued(unavailable);
+        this.rejectReadyWaiters(new SearchUnavailableError("Japanese search is unavailable.", { cause: unavailable, retryable: false }));
         return;
+      }
       case "closed":
       case "terminating":
       case "backoff":
@@ -283,6 +307,7 @@ export class JapaneseSearchRepository {
         // The retry budget protects against failures before ready. A healthy boot starts
         // a fresh budget, so slow queries cannot permanently exhaust worker recovery.
         this.state.lifecycle = { kind: "ready", restartAttempts: 0 };
+        this.resolveReadyWaiters();
         this.options.log?.("[japanese-search] worker ready", {
           initializationMs: Date.now() - generation.startedAt,
           indexedAt: message.metadata.indexed_at,
@@ -298,6 +323,7 @@ export class JapaneseSearchRepository {
         initializationMs: Date.now() - generation.startedAt,
       });
       this.state.lifecycle = { kind: "dead", reason: "startup" };
+      this.rejectReadyWaiters(new SearchUnavailableError("Japanese search Worker could not open the index.", { retryable: false }));
       void this.workerHost.terminate(generation).catch((error) => {
         this.options.log?.("[japanese-search] worker termination failed:", error);
       });
@@ -350,17 +376,8 @@ export class JapaneseSearchRepository {
         : new Error(`Japanese search worker startup exceeded ${failure.timeoutMs} ms`);
     this.options.log?.("[japanese-search] worker failure:", error.message);
 
-    if (failure.type === "startup-timeout") {
-      this.state.lifecycle = { kind: "dead", reason: "startup" };
-      if (this.active) {
-        this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
-        this.active = undefined;
-      }
-      this.failQueued(new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
-      // WorkerHost already initiates termination for startup-timeout failures.
-      return;
-    }
-
+    // Startup timeouts, errors and unexpected exits all consume the same bounded
+    // pre-ready restart budget. A deterministic startup-error message remains terminal.
     const countsTowardStartupRetryBudget = !this.workerHost.hasReachedReady(generation);
     if (this.active) {
       this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search worker failed; retry the request."));
@@ -382,7 +399,7 @@ export class JapaneseSearchRepository {
     const restartAttempts = this.currentRestartAttempts();
     const startupFailurePending = lifecycle.kind === "idle" && lifecycle.startupFailurePending;
 
-    if (this.queue.length === 0) {
+    if (!this.hasDemand()) {
       const pending = startupFailurePending || countsTowardStartupRetryBudget;
       if (oldWorker) {
         const termination = this.workerHost.terminate(oldWorker).catch((error) => {
@@ -398,6 +415,7 @@ export class JapaneseSearchRepository {
         void termination.then(() => {
           if (this.state.lifecycle !== terminating) return;
           this.state.lifecycle = { kind: "idle", restartAttempts, startupFailurePending: pending };
+          this.ensureReadyDemand();
           this.pump();
         });
       } else {
@@ -408,7 +426,7 @@ export class JapaneseSearchRepository {
     this.scheduleWorkerRestart(reason, oldWorker, countsTowardStartupRetryBudget, logTerminationFailure);
   }
 
-  /** Restart only while callers are waiting; only failures before ready consume the retry budget. */
+  /** Restart only while searches or ready() callers are waiting; only pre-ready failures consume the retry budget. */
   private scheduleWorkerRestart(
     reason: string,
     workerToTerminate?: WorkerGeneration<WorkerMetadata>,
@@ -417,7 +435,7 @@ export class JapaneseSearchRepository {
   ): void {
     const current = this.state.lifecycle;
     if (this.closed || current.kind === "dead" || current.kind === "closed" ||
-        this.queue.length === 0 || current.kind === "terminating" || current.kind === "backoff") return;
+        !this.hasDemand() || current.kind === "terminating" || current.kind === "backoff") return;
 
     const maxAttempts = this.options.maxRestartAttempts ?? DEFAULT_MAX_RESTART_ATTEMPTS;
     let restartAttempts = this.currentRestartAttempts();
@@ -428,7 +446,9 @@ export class JapaneseSearchRepository {
         attempts: restartAttempts,
         maxAttempts,
       });
-      this.failQueued(new SearchWorkerError("Japanese search is unavailable after repeated worker failures; restart the server.", { retryable: false }));
+      const unavailable = new SearchWorkerError("Japanese search is unavailable after repeated worker failures; restart the server.", { retryable: false });
+      this.failQueued(unavailable);
+      this.rejectReadyWaiters(new SearchUnavailableError("Japanese search Worker restart limit was reached.", { cause: unavailable, retryable: false }));
       return;
     }
 
@@ -463,7 +483,7 @@ export class JapaneseSearchRepository {
 
     void termination.then(() => {
       if (this.state.lifecycle !== terminating) return;
-      if (this.closed || this.queue.length === 0) {
+      if (this.closed || !this.hasDemand()) {
         this.state.lifecycle = { kind: "idle", restartAttempts, startupFailurePending: false };
         this.pump();
         return;
@@ -472,7 +492,7 @@ export class JapaneseSearchRepository {
       const timer = setTimeout(() => {
         if (this.state.lifecycle !== backoff) return;
         this.state.lifecycle = { kind: "idle", restartAttempts, startupFailurePending: false };
-        if (this.closed || this.queue.length === 0) {
+        if (this.closed || !this.hasDemand()) {
           this.pump();
           return;
         }

@@ -26,6 +26,23 @@ test("strict test helper accepts trigram and production validator leaves connect
   } finally { db.close(); }
 });
 
+test("production validator accepts quoted, unquoted, and mixed external-content option values", () => {
+  const definitions = [
+    "content='source_images', content_rowid='id'",
+    'content="source_images", content_rowid="id"',
+    "content=source_images, content_rowid=id",
+    "content='source_images', content_rowid=id",
+    'content=source_images, content_rowid="id"',
+  ];
+  for (const definition of definitions) {
+    const db = new DatabaseSync(":memory:");
+    db.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, ${definition});`);
+    try {
+      assert.doesNotThrow(() => assertSearchDatabaseCompatible(db), definition);
+    } finally { db.close(); }
+  }
+});
+
 test("production validator rejects an incorrect external-content rowid mapping", () => {
   const db = new DatabaseSync(":memory:");
   db.exec(source + " CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, content='source_images', content_rowid='reviewed');");

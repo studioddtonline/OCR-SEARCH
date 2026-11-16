@@ -1,3 +1,4 @@
+import type { StandardSearchOptions, StandardSearchRequest, StandardSearchResult } from "../src/index.js";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -193,4 +194,14 @@ test("root API exposes the facade and shared errors without internal SQL impleme
   assert.equal("compileQuery" in queryApi, false);
   assert.equal("StandardSearchRepository" in api, false);
   assert.equal("assertSearchDatabaseCompatible" in api, false);
+});
+
+
+test("package root exports the standard-search types used by OcrSearch.search", () => {
+  const request: StandardSearchRequest = { query: "東京" };
+  const options: StandardSearchOptions = { maxLimit: 10 };
+  const result: StandardSearchResult = { results: [], returned: 0, offset: 0, limit: 10, nextAfterId: null };
+  assert.equal(request.query, "東京");
+  assert.equal(options.maxLimit, 10);
+  assert.equal(result.returned, 0);
 });
