@@ -138,4 +138,4 @@ The installer verifies the pinned release SHA-256 before extraction. The Worker 
 
 ## Worker 初期化の待機
 
-`OcrSearch.ready()` は、日本語検索を有効にした場合に初回 Worker の Vaporetto model 読み込みと index 検証が完了するまで待機する。日本語検索を無効にしている場合は直ちに resolve する。初期化に失敗した場合は `SearchUnavailableError` で reject する。HTTP server 等は、必要に応じてこの Promise を待ってから readiness を公開できる。
+`OcrSearch.ready()` は、日本語検索を有効にした場合に Worker の Vaporetto model 読み込みと index 検証が完了し、利用可能な Worker が存在するまで待機する。日本語検索を無効にしている場合は直ちに resolve する。初期 Worker が `error`、予期しない `exit`、または startup deadline 超過で失敗した場合、`ready()` の待機自体が需要となり、検索要求と同じ自動再起動上限・backoff を共有して復旧を試みる。再起動上限に達した場合、または index の読み込み・検証を示す `startup-error` を受け取った場合は `SearchUnavailableError` で reject する。`close()` された場合も reject する。

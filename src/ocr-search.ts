@@ -63,7 +63,7 @@ export class OcrSearch {
     }
   }
 
-  /** Resolve when the optional Japanese Worker has completed its initial startup. */
+  /** Resolve when the optional Japanese Worker is available, including bounded recovery after startup failures. */
   ready(): Promise<void> {
     if (this.closed) return Promise.reject(new SearchUnavailableError("Search instance is closed."));
     return this.japanese?.ready() ?? Promise.resolve();

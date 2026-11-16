@@ -171,6 +171,132 @@ function fakeRepositoryOptions(
   };
 }
 
+test("ready() demand retries an initial Worker failure and resolves after the replacement is ready", async () => {
+  const dir = createTempDir("japanese-search-ready-recovery-");
+  const workers: FakeJapaneseWorker[] = [];
+  const repo = JapaneseSearchRepository.open(fakeRepositoryOptions(dir, workers, {
+    autoReady: false,
+    restartBaseDelayMs: 2,
+    maxRestartAttempts: 2,
+  }));
+  const keepAlive = setTimeout(() => undefined, 1000);
+  try {
+    const firstReady = repo.ready();
+    const concurrentReady = repo.ready();
+    await waitUntil(() => workers.length === 1);
+    workers[0]!.emit("error", new Error("first startup failure"));
+    await waitUntil(() => workers.length === 2);
+    workers[1]!.emit("message", { type: "ready", metadata: fakeMetadata });
+    await Promise.all([firstReady, concurrentReady]);
+    assert.equal(workers.length, 2, "concurrent ready() callers must share one recovery Worker");
+    assert.equal(workers[0]!.terminated, true);
+    await repo.ready();
+    assert.equal(workers.length, 2, "ready() resolves immediately while a Worker is ready");
+  } finally {
+    clearTimeout(keepAlive);
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("ready() and queued searches share one startup restart budget", async () => {
+  const dir = createTempDir("japanese-search-ready-search-shared-budget-");
+  const workers: FakeJapaneseWorker[] = [];
+  const repo = JapaneseSearchRepository.open(fakeRepositoryOptions(dir, workers, {
+    autoReady: false,
+    restartBaseDelayMs: 2,
+    maxRestartAttempts: 2,
+  }));
+  const keepAlive = setTimeout(() => undefined, 1000);
+  try {
+    const ready = repo.ready();
+    const search = repo.search({ query: "shared-demand", mode: "any", limit: 5, offset: 0 });
+    await waitUntil(() => workers.length === 1);
+    workers[0]!.emit("error", new Error("first startup failure"));
+    await waitUntil(() => workers.length === 2);
+    workers[1]!.emit("error", new Error("second startup failure"));
+    await waitUntil(() => workers.length === 3);
+    workers[2]!.emit("message", { type: "ready", metadata: fakeMetadata });
+    await ready;
+    await waitUntil(() => workers[2]!.posted.length === 1);
+    const id = workers[2]!.posted[0]!.id as number;
+    workers[2]!.respond(id);
+    assert.deepEqual(await search, { id });
+    assert.equal(workers.length, 3, "ready() and search must consume the same two retries");
+  } finally {
+    clearTimeout(keepAlive);
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("ready() retries a startup deadline timeout within the shared restart budget", async () => {
+  const dir = createTempDir("japanese-search-ready-startup-timeout-");
+  const workers: FakeJapaneseWorker[] = [];
+  const repo = JapaneseSearchRepository.open(fakeRepositoryOptions(dir, workers, {
+    autoReady: false,
+    startupTimeoutMs: 15,
+    restartBaseDelayMs: 2,
+    maxRestartAttempts: 1,
+  }));
+  const keepAlive = setTimeout(() => undefined, 1000);
+  try {
+    const ready = repo.ready();
+    await waitUntil(() => workers.length === 2);
+    workers[1]!.emit("message", { type: "ready", metadata: fakeMetadata });
+    await ready;
+    assert.equal(workers[0]!.terminated, true);
+    assert.equal(workers.length, 2);
+  } finally {
+    clearTimeout(keepAlive);
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("ready() shares the existing startup restart limit and rejects all waiters when exhausted", async () => {
+  const dir = createTempDir("japanese-search-ready-restart-limit-");
+  const workers: FakeJapaneseWorker[] = [];
+  const repo = JapaneseSearchRepository.open(fakeRepositoryOptions(dir, workers, {
+    autoReady: false,
+    restartBaseDelayMs: 2,
+    maxRestartAttempts: 1,
+  }));
+  const keepAlive = setTimeout(() => undefined, 1000);
+  try {
+    const firstReady = repo.ready();
+    const secondReady = repo.ready();
+    await waitUntil(() => workers.length === 1);
+    workers[0]!.emit("error", new Error("startup failure one"));
+    await waitUntil(() => workers.length === 2);
+    workers[1]!.emit("error", new Error("startup failure two"));
+    await Promise.all([
+      assert.rejects(firstReady, /restart limit/),
+      assert.rejects(secondReady, /restart limit/),
+    ]);
+    assert.equal(workers.length, 2, "ready() must not create retries beyond the shared limit");
+    await assert.rejects(repo.ready(), /startup failed/);
+  } finally {
+    clearTimeout(keepAlive);
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("close() rejects pending ready() callers", async () => {
+  const dir = createTempDir("japanese-search-ready-close-");
+  const workers: FakeJapaneseWorker[] = [];
+  const repo = JapaneseSearchRepository.open(fakeRepositoryOptions(dir, workers, { autoReady: false }));
+  try {
+    const pending = repo.ready();
+    repo.close();
+    await assert.rejects(pending, /closed/);
+  } finally {
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
 test("an idle worker failure does not respawn until a new request needs it", async () => {
   const dir = createTempDir("japanese-search-demand-restart-");
   const workers: FakeJapaneseWorker[] = [];
@@ -282,8 +408,10 @@ test("startup-error is terminal and does not enter the automatic restart loop", 
   const repo = JapaneseSearchRepository.open(fakeRepositoryOptions(dir, workers, { restartBaseDelayMs: 2 }));
   const keepAlive = setTimeout(() => undefined, 1000);
   try {
+    const ready = repo.ready();
     const pending = repo.search({ query: "invalid-index", mode: "any", limit: 5, offset: 0 });
     workers[0]!.emit("message", { type: "startup-error", message: "invalid index metadata" });
+    await assert.rejects(ready, /could not open the index/);
     await assert.rejects(pending, /unavailable/);
     await new Promise((resolve) => setTimeout(resolve, 20));
     assert.equal(workers.length, 1, "a configuration/index startup error must not be retried");
