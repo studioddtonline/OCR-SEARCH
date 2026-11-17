@@ -268,7 +268,7 @@ export class JapaneseSearchRepository {
     const generation = this.workerHost.current;
     this.active = undefined;
     if (generation) {
-      void this.workerHost.terminate(generation, new SearchWorkerError("Japanese search is unavailable.", { retryable: false })).catch((error) => {
+      void this.workerHost.terminate(generation, new SearchUnavailableError("Japanese search is unavailable because the repository is closed.", { retryable: false })).catch((error) => {
         this.options.log?.("[japanese-search] worker termination failed:", error);
       });
     }
@@ -295,11 +295,11 @@ export class JapaneseSearchRepository {
     if (this.state.pumping || this.active || this.queue.length === 0) return;
     switch (lifecycle.kind) {
       case "dead": {
-        const unavailable = new SearchWorkerError(lifecycle.reason === "retry-exhausted"
+        const unavailable = new SearchUnavailableError(lifecycle.reason === "retry-exhausted"
           ? "Japanese search is unavailable after repeated worker failures; restart the server."
           : "Japanese search is unavailable.", { retryable: false });
         this.failQueued(unavailable);
-        this.rejectReadyWaiters(new SearchUnavailableError("Japanese search is unavailable.", { cause: unavailable, retryable: false }));
+        this.rejectReadyWaiters(unavailable);
         return;
       }
       case "closed":
@@ -389,15 +389,16 @@ export class JapaneseSearchRepository {
         initializationMs: Date.now() - generation.startedAt,
       });
       this.state.lifecycle = { kind: "dead", reason: "startup" };
-      this.rejectReadyWaiters(new SearchUnavailableError("Japanese search Worker could not open the index.", { retryable: false }));
+      const unavailable = new SearchUnavailableError("Japanese search Worker could not open the index.", { retryable: false });
+      this.rejectReadyWaiters(unavailable);
       void this.workerHost.terminate(generation).catch((error) => {
         this.options.log?.("[japanese-search] worker termination failed:", error);
       });
       if (this.active) {
-        this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
+        this.finishEntry(this.active, undefined, unavailable);
         this.active = undefined;
       }
-      this.failQueued(new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
+      this.failQueued(unavailable);
       return;
     }
     if (message.type === "started") {
@@ -512,9 +513,9 @@ export class JapaneseSearchRepository {
         attempts: restartAttempts,
         maxAttempts,
       });
-      const unavailable = new SearchWorkerError("Japanese search is unavailable after repeated worker failures; restart the server.", { retryable: false });
+      const unavailable = new SearchUnavailableError("Japanese search is unavailable after repeated worker failures; restart the server.", { retryable: false });
       this.failQueued(unavailable);
-      this.rejectReadyWaiters(new SearchUnavailableError("Japanese search Worker restart limit was reached.", { cause: unavailable, retryable: false }));
+      this.rejectReadyWaiters(unavailable);
       return;
     }
 
