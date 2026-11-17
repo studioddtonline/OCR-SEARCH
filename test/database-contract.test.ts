@@ -33,6 +33,14 @@ test("production validator accepts quoted, unquoted, and mixed external-content 
     "content=source_images, content_rowid=id",
     "content='source_images', content_rowid=id",
     'content=source_images, content_rowid="id"',
+    "CONTENT='source_images', CONTENT_ROWID='id'",
+    "content = 'source_images', content_rowid = 'id'",
+    "content=\n'source_images',\ncontent_rowid=\n'id'",
+    "content_rowid='id', content='source_images'",
+    "content_rowid=id, content=source_images",
+    'content="source_images", content_rowid=id',
+    "content=source_images, content_rowid='id'",
+    'CONTENT = "source_images", CONTENT_ROWID = "id"',
   ];
   for (const definition of definitions) {
     const db = new DatabaseSync(":memory:");
@@ -83,4 +91,35 @@ test("strict test helper validates the external-content rowid mapping", () => {
       /content_rowid=id/,
     );
   } finally { invalid.close(); }
+});
+
+
+test("production validator rejects near-miss identifiers and trailing option junk", () => {
+  const invalidDefinitions = [
+    "content='source_images_backup', content_rowid='id'",
+    "content='backup_source_images', content_rowid='id'",
+    "content='source_images', content_rowid='id_extra'",
+    "content='source_images', content_rowid='backup_id'",
+  ];
+  for (const definition of invalidDefinitions) {
+    const db = new DatabaseSync(":memory:");
+    db.exec(source + ` CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, ${definition});`);
+    try {
+      assert.throws(() => assertSearchDatabaseCompatible(db), /external content source_images with content_rowid=id/);
+    } finally { db.close(); }
+  }
+
+  const trailingJunk = new DatabaseSync(":memory:");
+  trailingJunk.exec(source + " CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, content='source_images', content_rowid='id');");
+  try {
+    trailingJunk.exec("PRAGMA writable_schema=ON;");
+    trailingJunk.prepare("UPDATE sqlite_master SET sql = ? WHERE name = 'images_fts'").run(
+      "CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, content='source_images' unexpected, content_rowid='id')",
+    );
+    trailingJunk.exec("PRAGMA writable_schema=OFF;");
+    assert.throws(
+      () => assertSearchDatabaseCompatible(trailingJunk),
+      /external content source_images with content_rowid=id/,
+    );
+  } finally { trailingJunk.close(); }
 });
