@@ -1,6 +1,7 @@
 import { accessSync, constants } from "node:fs";
 import { Worker, type WorkerOptions } from "node:worker_threads";
-import { SearchCancelledError, SearchUnavailableError, SearchWorkerError } from "../errors.js";
+import { SearchBusyError, SearchCancelledError, SearchUnavailableError, SearchWorkerError } from "../errors.js";
+import { SearchQueryValidationError } from "../query.js";
 import { WorkerHost, type WorkerGeneration, type WorkerHostFailure, type WorkerThreadLike } from "../worker-host.js";
 
 export interface JapaneseSearchOptions {
@@ -8,6 +9,8 @@ export interface JapaneseSearchOptions {
   extensionPath: string;
   busyTimeoutMs: number;
   maxLimit: number;
+  /** Maximum active + queued requests. Defaults to 4; valid range is 1–64. */
+  maxPendingRequests?: number;
   log?: (...args: unknown[]) => void;
 }
 
@@ -20,6 +23,13 @@ interface JapaneseSearchRuntimeOptions extends JapaneseSearchOptions {
   restartBaseDelayMs?: number;
   restartMaxDelayMs?: number;
   maxRestartAttempts?: number;
+}
+
+interface ReadyWaiter {
+  resolve: () => void;
+  reject: (error: Error) => void;
+  signal?: AbortSignal;
+  abortListener?: () => void;
 }
 
 export interface JapaneseSearchRequest {
@@ -77,7 +87,7 @@ type WorkerMessage =
   | { type: "result"; id: number; ok: true; value: unknown }
   | { type: "result"; id: number; ok: false; code: string; operatorMessage?: string };
 
-const MAX_PENDING_REQUESTS = 4;
+const DEFAULT_MAX_PENDING_REQUESTS = 4;
 const DEFAULT_EXECUTION_TIMEOUT_MS = 20_000;
 // Vaporetto model initialization can be expensive on low-power hosts; keep it off the main thread.
 const DEFAULT_WORKER_STARTUP_TIMEOUT_MS = 180_000;
@@ -97,7 +107,9 @@ function assertNever(value: never): never {
  */
 export class JapaneseSearchRepository {
   private readonly workerHost: WorkerHost<WorkerMessage, WorkerMetadata>;
-  private readonly readyWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>();
+  private readonly readyWaiters = new Set<ReadyWaiter>();
+  /** Absolute monotonic deadline survives cancellation of a backoff timer. */
+  private restartNotBefore = 0;
   private readonly queue: QueuedSearch[] = [];
   private active: QueuedSearch | undefined;
   private nextId = 1;
@@ -133,6 +145,8 @@ export class JapaneseSearchRepository {
     try {
       accessSync(options.indexPath, constants.R_OK);
       accessSync(options.extensionPath, constants.R_OK);
+      // A missing packaged Worker is deterministic and must fail construction, not retry. 
+      accessSync(new URL("./worker.mjs", import.meta.url), constants.R_OK);
     } catch (cause) {
       throw new SearchUnavailableError("Japanese search files are unavailable.", { cause });
     }
@@ -140,7 +154,8 @@ export class JapaneseSearchRepository {
   }
 
   /** Resolve when a ready Worker is available; this demand also drives bounded recovery. */
-  ready(): Promise<void> {
+  ready(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return Promise.reject(new SearchCancelledError("Japanese search readiness wait was cancelled.", { cause: signal.reason }));
     if (this.closed) return Promise.reject(new SearchUnavailableError("Japanese search is unavailable.", { retryable: false }));
     const generation = this.workerHost.current;
     if (generation && this.workerHost.hasReachedReady(generation)) return Promise.resolve();
@@ -149,9 +164,43 @@ export class JapaneseSearchRepository {
     }
 
     return new Promise((resolve, reject) => {
-      this.readyWaiters.add({ resolve: () => resolve(), reject });
+      const waiter: ReadyWaiter = { resolve, reject, signal };
+      if (signal) {
+        waiter.abortListener = () => {
+          if (!this.readyWaiters.delete(waiter)) return;
+          this.removeReadyWaiterListener(waiter);
+          reject(new SearchCancelledError("Japanese search readiness wait was cancelled.", { cause: signal.reason }));
+          this.cancelBackoffWhenUndemanded();
+        };
+        signal.addEventListener("abort", waiter.abortListener, { once: true });
+      }
+      this.readyWaiters.add(waiter);
       this.ensureReadyDemand();
     });
+  }
+
+  get japaneseEnabled(): boolean {
+    return true;
+  }
+
+  private removeReadyWaiterListener(waiter: ReadyWaiter): void {
+    if (waiter.signal && waiter.abortListener) {
+      waiter.signal.removeEventListener("abort", waiter.abortListener);
+      waiter.abortListener = undefined;
+    }
+  }
+
+  private cancelBackoffWhenUndemanded(): void {
+    if (this.hasDemand()) return;
+    const lifecycle = this.state.lifecycle;
+    if (lifecycle.kind !== "backoff") return;
+    clearTimeout(lifecycle.timer);
+    this.state.lifecycle = {
+      kind: "idle",
+      restartAttempts: lifecycle.restartAttempts,
+      startupFailurePending: false,
+    };
+    // restartNotBefore intentionally remains unchanged.
   }
 
   private hasDemand(): boolean {
@@ -167,20 +216,27 @@ export class JapaneseSearchRepository {
   }
 
   private resolveReadyWaiters(): void {
-    for (const waiter of this.readyWaiters) waiter.resolve();
+    for (const waiter of this.readyWaiters) {
+      this.removeReadyWaiterListener(waiter);
+      waiter.resolve();
+    }
     this.readyWaiters.clear();
   }
 
   private rejectReadyWaiters(error: Error): void {
-    for (const waiter of this.readyWaiters) waiter.reject(error);
+    for (const waiter of this.readyWaiters) {
+      this.removeReadyWaiterListener(waiter);
+      waiter.reject(error);
+    }
     this.readyWaiters.clear();
   }
 
   search(request: JapaneseSearchRequest, signal?: AbortSignal): Promise<unknown> {
-    if (this.closed) return Promise.reject(new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
-    if (signal?.aborted) return Promise.reject(new SearchCancelledError());
-    if (this.queue.length + (this.active ? 1 : 0) >= MAX_PENDING_REQUESTS) {
-      return Promise.reject(new SearchWorkerError("Japanese search is busy; retry after current searches finish."));
+    if (signal?.aborted) return Promise.reject(new SearchCancelledError("Japanese search was cancelled.", { cause: signal.reason }));
+    if (this.closed) return Promise.reject(new SearchUnavailableError("Japanese search is unavailable because the repository is closed.", { retryable: false }));
+    if (this.state.lifecycle.kind === "dead") return Promise.reject(new SearchUnavailableError("Japanese search is unavailable after Worker startup failed.", { retryable: false }));
+    if (this.queue.length + (this.active ? 1 : 0) >= (this.options.maxPendingRequests ?? DEFAULT_MAX_PENDING_REQUESTS)) {
+      return Promise.reject(new SearchBusyError());
     }
 
     return new Promise((resolve, reject) => {
@@ -205,7 +261,7 @@ export class JapaneseSearchRepository {
     if (lifecycle.kind === "backoff") clearTimeout(lifecycle.timer);
     this.state.lifecycle = { kind: "closed" };
     this.rejectReadyWaiters(new SearchUnavailableError("Japanese search is unavailable because the repository is closed.", { retryable: false }));
-    if (this.active) this.finishEntry(this.active, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
+    if (this.active) this.finishEntry(this.active, undefined, new SearchUnavailableError("Japanese search is unavailable.", { retryable: false }));
     for (const entry of this.queue.splice(0)) {
       this.finishEntry(entry, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
     }
@@ -222,7 +278,16 @@ export class JapaneseSearchRepository {
     if (this.closed) return;
     const attempts = this.currentRestartAttempts();
     this.state.lifecycle = { kind: "starting", restartAttempts: attempts };
-    this.workerHost.start();
+    try {
+      this.workerHost.start();
+      this.restartNotBefore = 0;
+    } catch (error) {
+      // Worker construction can fail synchronously (for example, transient thread limits).
+      // The Worker script itself is preflighted in open(), so this enters bounded recovery.
+      this.options.log?.("[japanese-search] worker spawn failed:", error);
+      this.state.lifecycle = { kind: "idle", restartAttempts: attempts, startupFailurePending: true };
+      if (this.hasDemand()) this.scheduleWorkerRestart("worker spawn failed", undefined, true);
+    }
   }
 
   private pump(): void {
@@ -282,7 +347,7 @@ export class JapaneseSearchRepository {
     let entry: QueuedSearch | undefined;
     while ((entry = this.queue.shift())) {
       if (entry.signal?.aborted) {
-        this.finishEntry(entry, undefined, new SearchCancelledError());
+        this.finishEntry(entry, undefined, new SearchCancelledError("Japanese search was cancelled.", { cause: entry.signal?.reason }));
         continue;
       }
       break;
@@ -307,6 +372,7 @@ export class JapaneseSearchRepository {
         // The retry budget protects against failures before ready. A healthy boot starts
         // a fresh budget, so slow queries cannot permanently exhaust worker recovery.
         this.state.lifecycle = { kind: "ready", restartAttempts: 0 };
+        this.restartNotBefore = 0;
         this.resolveReadyWaiters();
         this.options.log?.("[japanese-search] worker ready", {
           initializationMs: Date.now() - generation.startedAt,
@@ -351,7 +417,7 @@ export class JapaneseSearchRepository {
     } else {
       if (message.operatorMessage) this.options.log?.("[japanese-search] query failed:", message.operatorMessage);
       if (message.code === "no_searchable_tokens") {
-        this.finishEntry(active, undefined, new SearchWorkerError("The tokenizer produced no searchable tokens for this query.", { retryable: false }));
+        this.finishEntry(active, undefined, new SearchQueryValidationError("The tokenizer produced no searchable tokens for this query."));
       } else {
         this.finishEntry(active, undefined, new SearchWorkerError("Japanese search failed; check the server log and rebuild the index if needed."));
       }
@@ -456,7 +522,12 @@ export class JapaneseSearchRepository {
     const baseDelayMs = this.options.restartBaseDelayMs ?? DEFAULT_RESTART_BASE_DELAY_MS;
     const maxDelayMs = this.options.restartMaxDelayMs ?? DEFAULT_RESTART_MAX_DELAY_MS;
     const retryExponent = Math.max(0, restartAttempts - 1);
-    const delayMs = Math.min(baseDelayMs * (2 ** retryExponent), maxDelayMs);
+    const calculatedDelayMs = Math.min(baseDelayMs * (2 ** retryExponent), maxDelayMs);
+    const now = performance.now();
+    const delayMs = this.restartNotBefore > now && !countsTowardStartupRetryBudget
+      ? this.restartNotBefore - now
+      : calculatedDelayMs;
+    this.restartNotBefore = now + delayMs;
     this.options.log?.("[japanese-search] scheduling worker restart", {
       reason,
       attempt: restartAttempts,
@@ -489,6 +560,7 @@ export class JapaneseSearchRepository {
         return;
       }
 
+      const delayMs = Math.max(0, this.restartNotBefore - performance.now());
       const timer = setTimeout(() => {
         if (this.state.lifecycle !== backoff) return;
         this.state.lifecycle = { kind: "idle", restartAttempts, startupFailurePending: false };
@@ -534,13 +606,13 @@ export class JapaneseSearchRepository {
         entry.abortListener = undefined;
       }
       entry.settled = true;
-      entry.reject(new SearchCancelledError());
+      entry.reject(new SearchCancelledError("Japanese search was cancelled.", { cause: entry.signal?.reason }));
       return;
     }
     const index = this.queue.indexOf(entry);
     if (index >= 0) {
       this.queue.splice(index, 1);
-      this.finishEntry(entry, undefined, new SearchCancelledError());
+      this.finishEntry(entry, undefined, new SearchCancelledError("Japanese search was cancelled.", { cause: entry.signal?.reason }));
       this.pump();
     }
   }
