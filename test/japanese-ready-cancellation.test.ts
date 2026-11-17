@@ -122,11 +122,14 @@ test("repeated short ready deadlines cannot postpone a pending restart forever",
   const { dir, workers, repo } = setup({ restartBaseDelayMs: 70, restartMaxDelayMs: 70 });
   const keepAlive = setTimeout(() => undefined, 1500);
   try {
-    const initial = repo.ready();
+    const initialController = new AbortController();
+    const initialTimeout = setTimeout(() => initialController.abort(new Error("initial short deadline")), 12);
+    const initial = repo.ready(initialController.signal);
     await waitUntil(() => workers.length === 1);
     workers[0]!.emit("error", new Error("transient startup failure"));
     // The first caller remains demand until its deadline expires.
     await assert.rejects(initial, SearchCancelledError);
+    clearTimeout(initialTimeout);
     for (let attempt = 0; attempt < 8 && workers.length === 1; attempt += 1) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(new Error("short deadline")), 12);
