@@ -12,16 +12,30 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22.16.0"
-      - name: Verify tag matches package version
+      - name: Verify tag is on main and matches package version
         shell: bash
         run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "Release tag commit must be an ancestor of origin/main" >&2
+            exit 1
+          }
           PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
           test "$GITHUB_REF_NAME" = "v$PACKAGE_VERSION" || {
             echo "Tag $GITHUB_REF_NAME does not match package version v$PACKAGE_VERSION" >&2
+            exit 1
+          }
+          if grep -Eiq '^## .*Unreleased' CHANGELOG.md; then
+            echo "CHANGELOG.md still contains an Unreleased section; finalize it before tagging." >&2
+            exit 1
+          fi
+          grep -Fqx "## $PACKAGE_VERSION" CHANGELOG.md || {
+            echo "CHANGELOG.md has no section for $PACKAGE_VERSION" >&2
             exit 1
           }
       - name: Install locked development dependencies
@@ -34,18 +48,50 @@ jobs:
         run: npm run typecheck
       - name: Run regression and integration tests
         run: npm test
-      - name: Build package
-        run: npm run build
-      - name: Pack and verify distribution
+      - name: Build twice and verify reproducible package
         shell: bash
         run: |
-          npm pack --silent
+          set -euo pipefail
           PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
           PACKAGE_TARBALL="ocr-search-$PACKAGE_VERSION.tgz"
-          node .github/scripts/verify-package.mjs "$PACKAGE_TARBALL"
+          PACK_A="$RUNNER_TEMP/pack-a"
+          PACK_B="$RUNNER_TEMP/pack-b"
+          mkdir -p "$PACK_A" "$PACK_B"
+
+          npm run build
+          npm pack --ignore-scripts --silent --pack-destination "$PACK_A"
+
+          npm run build
+          npm pack --ignore-scripts --silent --pack-destination "$PACK_B"
+
+          cmp "$PACK_A/$PACKAGE_TARBALL" "$PACK_B/$PACKAGE_TARBALL"
+          cp "$PACK_B/$PACKAGE_TARBALL" "$GITHUB_WORKSPACE/$PACKAGE_TARBALL"
+          node .github/scripts/verify-package.mjs "$GITHUB_WORKSPACE/$PACKAGE_TARBALL"
+
+          SHA256="$(sha256sum "$GITHUB_WORKSPACE/$PACKAGE_TARBALL" | awk '{print $1}')"
+          SRI="$(openssl dgst -sha512 -binary "$GITHUB_WORKSPACE/$PACKAGE_TARBALL" | openssl base64 -A)"
+          printf '%s  %s\n' "$SHA256" "$PACKAGE_TARBALL" > "$GITHUB_WORKSPACE/SHA256SUMS"
+
+          awk -v heading="## $PACKAGE_VERSION" '
+            $0 == heading { found=1 }
+            found && /^## / && $0 != heading { exit }
+            found { print }
+          ' CHANGELOG.md > "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+          test -s "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+          {
+            echo
+            echo "## Package integrity"
+            echo
+            echo "- SHA-256: `$SHA256`"
+            echo "- npm SRI (sha512): `sha512-$SRI`"
+            echo "- Checksum file: `SHA256SUMS`"
+          } >> "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+
           echo "PACKAGE_TARBALL=$PACKAGE_TARBALL" >> "$GITHUB_ENV"
-      - name: Create GitHub Release and upload npm tarball
-        uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release and upload package assets
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
-          generate_release_notes: true
-          files: ${{ env.PACKAGE_TARBALL }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            ${{ env.PACKAGE_TARBALL }}
+            SHA256SUMS

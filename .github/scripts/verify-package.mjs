@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -25,6 +25,28 @@ for (const file of requiredFiles) {
   assert.ok(archive.includes(file), `Packed package is missing ${file}`);
 }
 assert.ok(!archive.some((file) => file.endsWith(".map")), "Package tarball must not contain sourcemaps");
+
+// Every relative Markdown link in the published package must resolve to another
+// packaged file. External URLs and fragment-only links are intentionally ignored.
+const markdownFiles = archive.filter((file) => file.startsWith("package/") && file.endsWith(".md"));
+for (const markdownFile of markdownFiles) {
+  const markdown = execFileSync("tar", ["-xOzf", tarball, markdownFile], { encoding: "utf8" });
+  const destinations = [
+    ...Array.from(markdown.matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/g), match => match[1]),
+    ...Array.from(markdown.matchAll(/^\s*\[[^\]]+\]:\s*(\S+)/gm), match => match[1]),
+  ];
+  for (const destination of destinations) {
+    const target = destination.split(/[?#]/, 1)[0];
+    if (!target || target.startsWith("#") || target.startsWith("/") ||
+        /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(target)) continue;
+    let decoded = target;
+    try { decoded = decodeURIComponent(target); } catch { /* Keep malformed escapes literal; lookup will fail. */ }
+    const relative = posix.normalize(posix.join(posix.dirname(markdownFile.slice("package/".length)), decoded));
+    assert.ok(!relative.startsWith("../") && relative !== "..", `Markdown link escapes package: ${markdownFile} -> ${destination}`);
+    assert.ok(archive.includes(`package/${relative}`), `Broken packaged Markdown link: ${markdownFile} -> ${destination}`);
+  }
+}
+
 for (const forbidden of [
   "package/scripts/clean-dist.mjs",
   "package/scripts/copy-runtime-assets.mjs",
