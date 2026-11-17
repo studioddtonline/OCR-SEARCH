@@ -160,7 +160,10 @@ export class JapaneseSearchRepository {
     const generation = this.workerHost.current;
     if (generation && this.workerHost.hasReachedReady(generation)) return Promise.resolve();
     if (this.state.lifecycle.kind === "dead") {
-      return Promise.reject(new SearchUnavailableError("Japanese search is unavailable after Worker startup failed.", { retryable: false }));
+      const message = this.state.lifecycle.reason === "retry-exhausted"
+        ? "Japanese search is unavailable after repeated worker failures; restart the server (restart limit reached)."
+        : "Japanese search is unavailable after Worker startup failed.";
+      return Promise.reject(new SearchUnavailableError(message, { retryable: false }));
     }
 
     return new Promise((resolve, reject) => {
