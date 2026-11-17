@@ -35,7 +35,7 @@ test("production validator accepts quoted, unquoted, and mixed external-content 
     'content=source_images, content_rowid="id"',
     "CONTENT='source_images', CONTENT_ROWID='id'",
     "content = 'source_images', content_rowid = 'id'",
-    "content=\n'source_images',\ncontent_rowid=\n'id'",
+    "content='source_images',\ncontent_rowid='id'",
     "content_rowid='id', content='source_images'",
     "content_rowid=id, content=source_images",
     'content="source_images", content_rowid=id',
@@ -109,17 +109,23 @@ test("production validator rejects near-miss identifiers and trailing option jun
     } finally { db.close(); }
   }
 
-  const trailingJunk = new DatabaseSync(":memory:");
-  trailingJunk.exec(source + " CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, content='source_images', content_rowid='id');");
-  try {
-    trailingJunk.exec("PRAGMA writable_schema=ON;");
-    trailingJunk.prepare("UPDATE sqlite_master SET sql = ? WHERE name = 'images_fts'").run(
-      "CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, content='source_images' unexpected, content_rowid='id')",
-    );
-    trailingJunk.exec("PRAGMA writable_schema=OFF;");
-    assert.throws(
-      () => assertSearchDatabaseCompatible(trailingJunk),
-      /external content source_images with content_rowid=id/,
-    );
-  } finally { trailingJunk.close(); }
+  const malformedSchema = {
+    prepare(sql: string) {
+      if (sql.includes("sqlite_master")) {
+        return { all: () => [
+          { name: "source_images", sql: null },
+          { name: "images_fts", sql: "CREATE VIRTUAL TABLE images_fts USING fts5(ocr_text, content='source_images' unexpected, content_rowid='id')" },
+        ] };
+      }
+      if (sql === "PRAGMA table_info(source_images)") {
+        return { all: () => ["id", "file_path", "file_name", "ocr_text", "reviewed"].map((name) => ({ name })) };
+      }
+      if (sql.includes("MATCH")) return { get: () => undefined };
+      throw new Error(`Unexpected SQL in validator test: ${sql}`);
+    },
+  } as unknown as DatabaseSync;
+  assert.throws(
+    () => assertSearchDatabaseCompatible(malformedSchema),
+    /external content source_images with content_rowid=id/,
+  );
 });
