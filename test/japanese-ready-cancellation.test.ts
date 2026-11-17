@@ -3,7 +3,7 @@ import { EventEmitter, getEventListeners } from "node:events";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { SearchBusyError, SearchCancelledError } from "../src/errors.js";
+import { SearchBusyError, SearchCancelledError, SearchUnavailableError } from "../src/errors.js";
 import { JapaneseSearchRepository } from "../src/japanese/repository.js";
 import { createTempDir, removeTempDir } from "./support/temp-dir.js";
 
@@ -164,6 +164,36 @@ test("maxPendingRequests is enforced and reports a retryable SearchBusyError", a
     const id = (workers[0]!.posted[0] as { id: number }).id;
     workers[0]!.emit("message", { type: "result", id, ok: true, value: { id } });
     assert.deepEqual(await first, { id });
+  } finally {
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("terminal Worker startup failure rejects ready and search with SearchUnavailableError", async () => {
+  const { dir, workers, repo } = setup();
+  try {
+    const ready = repo.ready();
+    await waitUntil(() => workers.length === 1);
+    workers[0]!.emit("message", { type: "startup-error", message: "invalid snapshot" });
+    await assert.rejects(ready, SearchUnavailableError);
+    await assert.rejects(
+      repo.search({ query: "after-startup-error", mode: "any", limit: 1, offset: 0 }),
+      SearchUnavailableError,
+    );
+  } finally {
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("close rejects queued searches with SearchUnavailableError", async () => {
+  const { dir, workers, repo } = setup();
+  try {
+    const pending = repo.search({ query: "pending-close", mode: "any", limit: 1, offset: 0 });
+    await waitUntil(() => workers.length === 1);
+    repo.close();
+    await assert.rejects(pending, SearchUnavailableError);
   } finally {
     repo.close();
     removeTempDir(dir);
