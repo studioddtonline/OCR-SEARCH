@@ -127,7 +127,8 @@ test("Japanese search is disabled unless explicit Worker configuration is suppli
   const database = createStandardSearchFixture("keyset-pagination");
   const search = new OcrSearch({ database });
   try {
-    await assert.doesNotReject(search.ready());
+    assert.equal(search.japaneseEnabled, false);
+    await assert.rejects(search.ready(), SearchUnavailableError);
     await assert.rejects(search.searchJapanese({ query: "東京" }), /not enabled/);
   } finally {
     search.close();

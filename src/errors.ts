@@ -23,8 +23,14 @@ export class SearchUnavailableError extends OcrSearchError {
 }
 
 export class SearchCancelledError extends OcrSearchError {
-  constructor(message = "Search was cancelled") {
-    super(message, "SEARCH_CANCELLED");
+  constructor(message = "Search was cancelled", options?: ErrorOptions) {
+    super(message, "SEARCH_CANCELLED", { ...options, retryable: false });
+  }
+}
+
+export class SearchBusyError extends OcrSearchError {
+  constructor(message = "Search is busy; retry after current searches finish.") {
+    super(message, "SEARCH_BUSY", { retryable: true });
   }
 }
 

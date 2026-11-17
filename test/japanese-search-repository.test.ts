@@ -275,7 +275,7 @@ test("ready() shares the existing startup restart limit and rejects all waiters 
       assert.rejects(secondReady, /restart limit/),
     ]);
     assert.equal(workers.length, 2, "ready() must not create retries beyond the shared limit");
-    await assert.rejects(repo.ready(), /startup failed/);
+    await assert.rejects(repo.ready(), /restart limit/);
   } finally {
     clearTimeout(keepAlive);
     repo.close();
