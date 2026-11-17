@@ -199,3 +199,63 @@ test("close rejects queued searches with SearchUnavailableError", async () => {
     removeTempDir(dir);
   }
 });
+
+test("a synchronous transient Worker factory failure uses bounded recovery", async () => {
+  const dir = createTempDir("japanese-sync-spawn-failure-");
+  const indexPath = join(dir, "index.sqlite");
+  const extensionPath = join(dir, "extension.so");
+  writeFileSync(indexPath, "index");
+  writeFileSync(extensionPath, "extension");
+  let attempts = 0;
+  let worker: FakeWorker | undefined;
+  const repo = JapaneseSearchRepository.open({
+    indexPath,
+    extensionPath,
+    busyTimeoutMs: 500,
+    maxLimit: 10,
+    restartBaseDelayMs: 2,
+    maxRestartAttempts: 2,
+    workerFactory: () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("temporary worker thread resource limit");
+      worker = new FakeWorker();
+      return worker;
+    },
+  });
+  const keepAlive = setTimeout(() => undefined, 1000);
+  try {
+    const pending = repo.ready();
+    await waitUntil(() => worker !== undefined);
+    worker!.becomeReady();
+    await pending;
+    assert.equal(attempts, 2);
+  } finally {
+    clearTimeout(keepAlive);
+    repo.close();
+    removeTempDir(dir);
+  }
+});
+
+test("cancelling the last readiness waiter during Worker termination preserves the retry deadline", async () => {
+  const { dir, workers, repo } = setup({ restartBaseDelayMs: 40, restartMaxDelayMs: 40 });
+  const keepAlive = setTimeout(() => undefined, 1000);
+  try {
+    const controller = new AbortController();
+    const pending = repo.ready(controller.signal);
+    await waitUntil(() => workers.length === 1);
+    workers[0]!.emit("error", new Error("worker failed before ready"));
+    controller.abort(new Error("caller no longer needs readiness"));
+    await assert.rejects(pending, SearchCancelledError);
+    await waitUntil(() => workers[0]!.terminated);
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+    await new Promise((resolve) => setTimeout(resolve, 45));
+    const next = repo.ready();
+    await waitUntil(() => workers.length === 2);
+    workers[1]!.becomeReady();
+    await next;
+  } finally {
+    clearTimeout(keepAlive);
+    repo.close();
+    removeTempDir(dir);
+  }
+});
