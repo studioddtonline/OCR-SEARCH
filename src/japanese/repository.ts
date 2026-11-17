@@ -524,8 +524,9 @@ export class JapaneseSearchRepository {
     const retryExponent = Math.max(0, restartAttempts - 1);
     const calculatedDelayMs = Math.min(baseDelayMs * (2 ** retryExponent), maxDelayMs);
     const now = performance.now();
-    const delayMs = this.restartNotBefore > now && !countsTowardStartupRetryBudget
-      ? this.restartNotBefore - now
+    const hasPendingDeadline = this.restartNotBefore > 0;
+    const delayMs = hasPendingDeadline && !countsTowardStartupRetryBudget
+      ? Math.max(0, this.restartNotBefore - now)
       : calculatedDelayMs;
     this.restartNotBefore = now + delayMs;
     this.options.log?.("[japanese-search] scheduling worker restart", {
@@ -585,6 +586,7 @@ export class JapaneseSearchRepository {
     const index = this.queue.indexOf(entry);
     if (index < 0 || entry.settled) return;
     this.queue.splice(index, 1);
+    this.cancelBackoffWhenUndemanded();
     this.options.log?.("[japanese-search] queued search expired before dispatch", {
       requestId: entry.id,
       timeoutMs,
@@ -613,6 +615,7 @@ export class JapaneseSearchRepository {
     if (index >= 0) {
       this.queue.splice(index, 1);
       this.finishEntry(entry, undefined, new SearchCancelledError("Japanese search was cancelled.", { cause: entry.signal?.reason }));
+      this.cancelBackoffWhenUndemanded();
       this.pump();
     }
   }
