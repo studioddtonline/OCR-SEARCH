@@ -32,13 +32,13 @@ const markdownFiles = archive.filter((file) => file.startsWith("package/") && fi
 for (const markdownFile of markdownFiles) {
   const markdown = execFileSync("tar", ["-xOzf", tarball, markdownFile], { encoding: "utf8" });
   const destinations = [
-    ...Array.from(markdown.matchAll(/!?\\[[^\\]]*\\]\\(([^)\\s]+)(?:\\s+[^)]*)?\\)/g), match => match[1]),
-    ...Array.from(markdown.matchAll(/^\\s*\\[[^\\]]+\\]:\\s*(\\S+)/gm), match => match[1]),
+    ...Array.from(markdown.matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/g), match => match[1]),
+    ...Array.from(markdown.matchAll(/^\s*\[[^\]]+\]:\s*(\S+)/gm), match => match[1]),
   ];
   for (const destination of destinations) {
     const target = destination.split(/[?#]/, 1)[0];
     if (!target || target.startsWith("#") || target.startsWith("/") ||
-        /^(?:[a-z][a-z0-9+.-]*:|\\/\\/)/i.test(target)) continue;
+        /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(target)) continue;
     let decoded = target;
     try { decoded = decodeURIComponent(target); } catch { /* Keep malformed escapes literal; lookup will fail. */ }
     const relative = posix.normalize(posix.join(posix.dirname(markdownFile.slice("package/".length)), decoded));

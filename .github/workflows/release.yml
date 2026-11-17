@@ -70,7 +70,7 @@ jobs:
 
           SHA256="$(sha256sum "$GITHUB_WORKSPACE/$PACKAGE_TARBALL" | awk '{print $1}')"
           SRI="$(openssl dgst -sha512 -binary "$GITHUB_WORKSPACE/$PACKAGE_TARBALL" | openssl base64 -A)"
-          printf '%s  %s\\n' "$SHA256" "$PACKAGE_TARBALL" > "$GITHUB_WORKSPACE/SHA256SUMS"
+          printf '%s  %s\n' "$SHA256" "$PACKAGE_TARBALL" > "$GITHUB_WORKSPACE/SHA256SUMS"
 
           awk -v heading="## $PACKAGE_VERSION" '
             $0 == heading { found=1 }
