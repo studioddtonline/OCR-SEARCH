@@ -518,7 +518,7 @@ export class JapaneseSearchRepository {
         attempts: restartAttempts,
         maxAttempts,
       });
-      const unavailable = new SearchUnavailableError("Japanese search is unavailable after repeated worker failures; restart the server.", { retryable: false });
+      const unavailable = new SearchUnavailableError("Japanese search is unavailable after repeated worker failures; restart the server (restart limit reached).", { retryable: false });
       this.failQueued(unavailable);
       this.rejectReadyWaiters(unavailable);
       return;
