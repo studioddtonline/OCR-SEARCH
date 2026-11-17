@@ -230,7 +230,12 @@ export class JapaneseSearchRepository {
   search(request: JapaneseSearchRequest, signal?: AbortSignal): Promise<unknown> {
     if (signal?.aborted) return Promise.reject(new SearchCancelledError("Japanese search was cancelled.", { cause: signal.reason }));
     if (this.closed) return Promise.reject(new SearchUnavailableError("Japanese search is unavailable because the repository is closed.", { retryable: false }));
-    if (this.state.lifecycle.kind === "dead") return Promise.reject(new SearchUnavailableError("Japanese search is unavailable after Worker startup failed.", { retryable: false }));
+    if (this.state.lifecycle.kind === "dead") {
+      const message = this.state.lifecycle.reason === "retry-exhausted"
+        ? "Japanese search is unavailable after repeated worker failures; restart the server (restart limit reached)."
+        : "Japanese search is unavailable after Worker startup failed.";
+      return Promise.reject(new SearchUnavailableError(message, { retryable: false }));
+    }
     if (this.queue.length + (this.active ? 1 : 0) >= (this.options.maxPendingRequests ?? DEFAULT_MAX_PENDING_REQUESTS)) {
       return Promise.reject(new SearchBusyError());
     }
@@ -386,7 +391,7 @@ export class JapaneseSearchRepository {
         initializationMs: Date.now() - generation.startedAt,
       });
       this.state.lifecycle = { kind: "dead", reason: "startup" };
-      const unavailable = new SearchUnavailableError("Japanese search Worker could not open the index.", { retryable: false });
+      const unavailable = new SearchUnavailableError("Japanese search is unavailable because the Worker could not open the index.", { retryable: false });
       this.rejectReadyWaiters(unavailable);
       void this.workerHost.terminate(generation).catch((error) => {
         this.options.log?.("[japanese-search] worker termination failed:", error);
