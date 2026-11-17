@@ -2,7 +2,23 @@
 
 Notable changes to OCR-SEARCH are recorded here. Versions are released from the matching `v<version>` Git tag.
 
-## 0.3.1 - Unreleased
+## 0.4.0 - Unreleased
+
+### Added
+
+- `OcrSearch.ready(signal?)` supports per-caller cancellation. Cancelling one waiter removes only that waiter; an already-starting Worker continues, and remaining waiters/searches retain recovery demand.
+- Retry backoff uses an absolute monotonic deadline that survives cancellation of the timer when demand temporarily disappears. Repeated short readiness deadlines cannot indefinitely postpone a pending restart.
+- `japaneseEnabled` exposes whether Japanese search was configured. Disabled, dead, and closed Japanese search states use `SearchUnavailableError` consistently.
+- Configurable `maxPendingRequests` (1–64, default 4) and retryable `SearchBusyError` (`SEARCH_BUSY`) distinguish queue saturation from Worker failures.
+- `SearchCancelledError.cause` preserves the originating AbortSignal reason. Punctuation-only Japanese queries use `SearchQueryValidationError`.
+- Synchronous transient Worker factory failures enter the bounded retry path. The packaged Worker script is checked during construction so a missing runtime asset remains a deterministic construction error.
+
+### Changed
+
+- Japanese readiness now rejects with `SearchUnavailableError` when Japanese search is disabled; use `japaneseEnabled` to inspect configuration.
+- Japanese search queue capacity is documented as a low-resource concurrency guard, not a throughput control.
+
+## 0.3.1
 
 ### Fixed
 
