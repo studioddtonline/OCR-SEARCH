@@ -4,8 +4,8 @@
 
 - 設計書: [DESIGN.md](./DESIGN.md)
 - 日本語検索の導入・運用: [docs/japanese-search.md](./docs/japanese-search.md)
-- 回帰テスト基準: [docs/regression-baseline.md](./docs/regression-baseline.md)
-- 回帰テスト実装マトリクス: [docs/regression-test-matrix.md](./docs/regression-test-matrix.md)
+- 回帰テスト基準: [docs/regression-baseline.md](https://github.com/studioddtonline/OCR-SEARCH/blob/main/docs/regression-baseline.md)
+- 回帰テスト実装マトリクス: [docs/regression-test-matrix.md](https://github.com/studioddtonline/OCR-SEARCH/blob/main/docs/regression-test-matrix.md)
 - 抽出元基準: OCR-MCP-SERVER commit `d9f23b0a7870ea267670bcf27208942172e27563`
 
 ## 実装済み
