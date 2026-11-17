@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { SearchQueryValidationError } from "./query.js";
-import { SearchUnavailableError } from "./errors.js";
+import { SearchCancelledError, SearchUnavailableError } from "./errors.js";
 import { StandardSearchRepository, type StandardSearchOptions, type StandardSearchRequest, type StandardSearchResult } from "./standard-search.js";
 import { assertSearchDatabaseCompatible } from "./testing.js";
 import { JapaneseSearchRepository, type JapaneseSearchOptions, type JapaneseSearchRequest } from "./japanese/repository.js";
@@ -53,6 +53,10 @@ export class OcrSearch {
     this.standard = new StandardSearchRepository(options.database, options.standard);
     this.japaneseMaxLimit = options.japanese?.maxLimit ?? 20;
     if (options.japanese) {
+      const maxPendingRequests = options.japanese.maxPendingRequests ?? 4;
+      if (!Number.isSafeInteger(maxPendingRequests) || maxPendingRequests < 1 || maxPendingRequests > 64) {
+        throw new SearchQueryValidationError("Japanese search maxPendingRequests must be an integer from 1 to 64.");
+      }
       if (!Number.isSafeInteger(options.japanese.maxLimit) || options.japanese.maxLimit < 1 || options.japanese.maxLimit > 50) {
         throw new SearchQueryValidationError("Japanese search maxLimit must be an integer from 1 to 50.");
       }
@@ -64,9 +68,17 @@ export class OcrSearch {
   }
 
   /** Resolve when the optional Japanese Worker is available, including bounded recovery after startup failures. */
-  ready(): Promise<void> {
+  get japaneseEnabled(): boolean {
+    return this.japanese !== undefined;
+  }
+
+  ready(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      return Promise.reject(new SearchCancelledError("Japanese search readiness wait was cancelled.", { cause: signal.reason }));
+    }
     if (this.closed) return Promise.reject(new SearchUnavailableError("Search instance is closed."));
-    return this.japanese?.ready() ?? Promise.resolve();
+    if (!this.japanese) return Promise.reject(new SearchUnavailableError("Japanese search is not enabled."));
+    return this.japanese.ready(signal);
   }
 
   search(request: StandardSearchRequest, signal?: AbortSignal): Promise<StandardSearchResult> {

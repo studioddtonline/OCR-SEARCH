@@ -87,13 +87,15 @@ ocr-search search-japanese \
 
 The CLI prints an initialization message because the Worker must load the native extension and warm the Vaporetto query tokenizer. Model initialization can take several seconds and substantial memory.
 
+Call `await search.ready(signal)` to wait for the Worker. The optional `AbortSignal` cancels only that caller's wait; it does not terminate a Worker that is already starting. A pre-aborted signal rejects with `SearchCancelledError`. If a deadline expires, the signal's `reason` is preserved as the error's `cause` (for example, `TimeoutError` from `AbortSignal.timeout()`). Concurrent waiters share the same startup and retry budget. `search.japaneseEnabled` reports whether Japanese search was configured; it does not imply that the Worker is currently ready. When Japanese search is disabled, `ready()` rejects with `SearchUnavailableError` rather than silently resolving.
+
 ## 4. Worker lifecycle
 
 When Japanese search is configured, OCR-SEARCH launches one dedicated Worker. The Worker loads the native extension, warms the Vaporetto query-side tokenizer once, validates the schema-v2 FTS5 index, then signals readiness asynchronously. Extension loading is disabled on the SQLite connection immediately after loading the trusted library.
 
 - Startup deadline: 180 seconds.
 - Search requests are dispatched one at a time in FIFO order.
-- Maximum active + queued requests: 4.
+- Maximum active + queued requests: 4 by default; configurable from 1 to 64 with `maxPendingRequests`. The default is a conservative low-resource limit, not a throughput setting: the Worker still executes one request at a time. A Web UI can evaluate 16–32 as a starting range using observed concurrency and memory use. Treat `SEARCH_BUSY` as retryable and retry with a short delay.
 - Queue-wait deadline: 180 seconds from enqueue until dispatch.
 - Execution deadline: 20 seconds, starting only after the Worker reports that a query has started.
 - Automatic restarts use exponential backoff (250 ms base, capped at 8 seconds), with at most five consecutive startup failures before the Worker reaches `ready`.
@@ -116,7 +118,7 @@ The result includes query tokens, snippets generated from the current source OCR
 
 ## 6. Index freshness and restart policy
 
-The Japanese index is a snapshot used for candidate discovery and BM25 ranking. Displayed OCR text, label, file name, and reviewed state are hydrated from the current source DB at search time. Deleted source rows are omitted. Label and reviewed filters use current source values. However, adding records or changing OCR text does not rebuild the index: new content is not discoverable until reindexing, and changed text can temporarily remain or disappear as a candidate according to the old snapshot. `indexedAt` identifies the snapshot age.
+The Japanese index is a snapshot used for candidate discovery, BM25 ranking, and the initial `label` / `reviewed` candidate filters. The API then hydrates displayed OCR text, label, file name, and reviewed state from the current source DB and rechecks the requested filters. Deleted source rows are omitted. Because candidate filtering happens against the old snapshot first, a row whose label or reviewed state changed after index creation can be absent from both `reviewed: true` and `reviewed: false` filtered searches (and likewise from both old/new label-filtered searches) until reindexing. Without those filters, the candidate can still appear with its current hydrated metadata. Adding records or changing OCR text does not rebuild the index: new content is not discoverable until reindexing, and changed text can temporarily remain or disappear as a candidate according to the old snapshot. `indexedAt` identifies the snapshot age.
 
 Rebuild the index after adding OCR records, changing OCR text, changing review state, or changing the source DB schema:
 

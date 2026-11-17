@@ -11,6 +11,7 @@ export {
 
 export {
   OcrSearchError,
+  SearchBusyError,
   SearchCancelledError,
   SearchQueryError,
   SearchUnavailableError,

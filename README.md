@@ -4,8 +4,8 @@
 
 - 設計書: [DESIGN.md](./DESIGN.md)
 - 日本語検索の導入・運用: [docs/japanese-search.md](./docs/japanese-search.md)
-- 回帰テスト基準: [docs/regression-baseline.md](./docs/regression-baseline.md)
-- 回帰テスト実装マトリクス: [docs/regression-test-matrix.md](./docs/regression-test-matrix.md)
+- 回帰テスト基準: [docs/regression-baseline.md](https://github.com/studioddtonline/OCR-SEARCH/blob/main/docs/regression-baseline.md)
+- 回帰テスト実装マトリクス: [docs/regression-test-matrix.md](https://github.com/studioddtonline/OCR-SEARCH/blob/main/docs/regression-test-matrix.md)
 - 抽出元基準: OCR-MCP-SERVER commit `d9f23b0a7870ea267670bcf27208942172e27563`
 
 ## 実装済み
@@ -17,7 +17,7 @@
 - 統合 API `OcrSearch` / `createOcrSearch()` / 初期化待機 `ready()`
 - Standard / Japanese 共通の検索結果フィールド（`id` / `label` / `fileName` / `reviewed` / `snippet`）
 - Browser-safe subpath exports: `ocr-search/query`、`ocr-search/reviewed`、`ocr-search/types`
-- Vaporetto 日本語検索 Worker、FIFO queue、cancel、queue/execution/startup timeout、bounded restart
+- Vaporetto 日本語検索 Worker、FIFO queue、cancel、queue/execution/startup timeout、bounded restart、AbortSignal対応のready()
 - 日本語 index schema v2 builder（明示パス指定、staging DB、検証後 rename）
 - sqlite-vaporetto installer / checker（upstream release SHA-256 検証）
 - 標準検索のsource baseline完全一致比較、query parser / DB contract / API tests
@@ -89,6 +89,8 @@ const hit: OcrSearchHit | undefined = undefined;
 
 `ocr-search/query` は純粋なJavaScriptロジックのみを公開する。SQL compiler は内部実装として扱い、このsubpathからは公開しない。`ocr-search/reviewed` は `isReviewed()` を公開し、`ocr-search/types` はNode.js依存を持たない共通結果型を公開する。従来の `isReviewedFlag()` は互換性のため残している。
 
+日本語検索の pending 上限は既定4件（active + queued）。低リソース環境向けの保守的な既定値で、上限を増やしても Worker の逐次実行スループットは増えない。Web UI などでは実測しながら16–32を初期検討値とし、SEARCH_BUSY は retryable として短い遅延を置いて再試行する。ready(signal) の abort は待機者だけを解除し、起動中 Worker は停止しない。
+
 Standard / Japanese の検索結果は共通フィールド `id`、`label`、`fileName`、`reviewed`、`snippet` を持つ。Japanese 検索結果のみ、BM25値の `score` が追加される。
 
 ## 日本語検索
@@ -109,15 +111,17 @@ const search = new OcrSearch({
     extensionPath: "/absolute/path/libsqlite_vaporetto.so",
     busyTimeoutMs: 500,
     maxLimit: 20,
+    maxPendingRequests: 4, // active + queued。1–64、default 4
   },
 });
-await search.ready(); // Japanese Worker が利用可能になるまで待つ（起動失敗時は既存の再起動上限内で復旧を試行）
+await search.ready(AbortSignal.timeout(180_000)); // timeout時はSearchCancelledError（causeにTimeoutError）
+console.log(search.japaneseEnabled); // 設定上の有効/無効。ready()成功とは別
 const result = await search.searchJapanese({ query: "吾輩は猫である", mode: "any" });
 ```
 
 index の再構築・置換後は、利用側アプリケーション（MCP server / Web UI Node server）を再起動する。日本語 index は候補IDとBM25順位のsnapshot。表示用の本文・label・fileName・reviewedはsource DBから検索時にhydrateするが、OCR本文の変更・追加はindex再構築まで検索候補に反映されない。
 
-label / reviewed filter は Worker 側の索引snapshotにも適用して候補を絞り込み、その後 source DB の現在値で再検証する。このため索引作成後に label / reviewed が変更されたレコードは、現在値がfilterに一致していても候補から漏れる場合がある。アプリケーション再起動時に索引を同期させる運用を前提とする。
+label / reviewed filter は Worker 側の索引snapshotにも適用して候補を絞り込み、その後 source DB の現在値で再検証する。このため索引作成後に label / reviewed が変更されたレコードは、現在値が true / false のどちらの filter にも一致していても候補から漏れる場合がある。filterなしの検索では候補に残り得る。再indexで同期する。
 
 ## CLI
 
