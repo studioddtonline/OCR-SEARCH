@@ -30,11 +30,11 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match package version v$PACKAGE_VERSION" >&2
             exit 1
           }
-          if grep -Eq '^## .* - Unreleased$' CHANGELOG.md; then
+          if grep -Eiq '^## .*Unreleased' CHANGELOG.md; then
             echo "CHANGELOG.md still contains an Unreleased section; finalize it before tagging." >&2
             exit 1
           fi
-          grep -Eq "^## $PACKAGE_VERSION([[:space:]]|$)" CHANGELOG.md || {
+          grep -Fqx "## $PACKAGE_VERSION" CHANGELOG.md || {
             echo "CHANGELOG.md has no section for $PACKAGE_VERSION" >&2
             exit 1
           }
