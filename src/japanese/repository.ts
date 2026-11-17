@@ -179,10 +179,6 @@ export class JapaneseSearchRepository {
     });
   }
 
-  get japaneseEnabled(): boolean {
-    return true;
-  }
-
   private removeReadyWaiterListener(waiter: ReadyWaiter): void {
     if (waiter.signal && waiter.abortListener) {
       waiter.signal.removeEventListener("abort", waiter.abortListener);
@@ -260,10 +256,11 @@ export class JapaneseSearchRepository {
     const lifecycle = this.state.lifecycle;
     if (lifecycle.kind === "backoff") clearTimeout(lifecycle.timer);
     this.state.lifecycle = { kind: "closed" };
-    this.rejectReadyWaiters(new SearchUnavailableError("Japanese search is unavailable because the repository is closed.", { retryable: false }));
-    if (this.active) this.finishEntry(this.active, undefined, new SearchUnavailableError("Japanese search is unavailable.", { retryable: false }));
+    const unavailable = new SearchUnavailableError("Japanese search is unavailable because the repository is closed.", { retryable: false });
+    this.rejectReadyWaiters(unavailable);
+    if (this.active) this.finishEntry(this.active, undefined, unavailable);
     for (const entry of this.queue.splice(0)) {
-      this.finishEntry(entry, undefined, new SearchWorkerError("Japanese search is unavailable.", { retryable: false }));
+      this.finishEntry(entry, undefined, unavailable);
     }
     const generation = this.workerHost.current;
     this.active = undefined;
