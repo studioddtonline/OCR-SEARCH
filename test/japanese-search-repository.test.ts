@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { createTempDir, removeTempDir } from "./support/temp-dir.js";
 import { JapaneseSearchRepository } from "../src/japanese/repository.js";
+import { SearchUnavailableError } from "../src/errors.js";
 import { loadVaporettoExtension } from "./support/sqlite-vaporetto-extension.js";
 
 const extensionPath = resolve(process.env.SQLITE_VAPORETTO_EXTENSION ?? "native/sqlite-vaporetto/libsqlite_vaporetto.so");
@@ -140,6 +141,7 @@ function fakeRepositoryOptions(
   dir: string,
   workers: FakeJapaneseWorker[],
   extra: {
+    runtimeAssetPaths?: readonly (string | URL)[];
     executionTimeoutMs?: number;
     startupTimeoutMs?: number;
     queueWaitTimeoutMs?: number;
@@ -170,6 +172,27 @@ function fakeRepositoryOptions(
     ...repositoryOptions,
   };
 }
+
+
+test("open rejects a missing packaged runtime helper before constructing a Worker", () => {
+  const dir = createTempDir("japanese-search-runtime-preflight-");
+  const workers: FakeJapaneseWorker[] = [];
+  try {
+    const options = fakeRepositoryOptions(dir, workers, {
+      runtimeAssetPaths: [
+        new URL("../src/japanese/worker.mjs", import.meta.url),
+        new URL("../src/missing-reviewed.mjs", import.meta.url),
+      ],
+    });
+    assert.throws(
+      () => JapaneseSearchRepository.open(options),
+      (error: unknown) => error instanceof SearchUnavailableError && error.code === "SEARCH_UNAVAILABLE",
+    );
+    assert.equal(workers.length, 0, "a missing runtime helper must fail before Worker creation");
+  } finally {
+    removeTempDir(dir);
+  }
+});
 
 test("ready() demand retries an initial Worker failure and resolves after the replacement is ready", async () => {
   const dir = createTempDir("japanese-search-ready-recovery-");

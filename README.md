@@ -114,14 +114,16 @@ const search = new OcrSearch({
     maxPendingRequests: 4, // active + queued。1–64、default 4
   },
 });
-await search.ready(AbortSignal.timeout(180_000)); // timeout時はSearchCancelledError（causeにTimeoutError）
+if (search.japaneseEnabled) {
+  await search.ready(AbortSignal.timeout(180_000)); // timeout時はSearchCancelledError（causeにTimeoutError）
+}
 console.log(search.japaneseEnabled); // 設定上の有効/無効。ready()成功とは別
 const result = await search.searchJapanese({ query: "吾輩は猫である", mode: "any" });
 ```
 
 index の再構築・置換後は、利用側アプリケーション（MCP server / Web UI Node server）を再起動する。日本語 index は候補IDとBM25順位のsnapshot。表示用の本文・label・fileName・reviewedはsource DBから検索時にhydrateするが、OCR本文の変更・追加はindex再構築まで検索候補に反映されない。
 
-label / reviewed filter は Worker 側の索引snapshotにも適用して候補を絞り込み、その後 source DB の現在値で再検証する。このため索引作成後に label / reviewed が変更されたレコードは、現在値が true / false のどちらの filter にも一致していても候補から漏れる場合がある。filterなしの検索では候補に残り得る。再indexで同期する。
+label / reviewed filter は Worker 側の索引snapshotにも適用して候補を絞り込み、その後 source DB の現在値で再検証する。このため索引作成後に label / reviewed が変更されたレコードは、現在値が filter 条件に一致していても候補から漏れる場合がある。filterなしの検索では候補に残り得る。再indexで同期する。
 
 ## CLI
 

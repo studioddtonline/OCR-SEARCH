@@ -78,14 +78,17 @@ jobs:
             found { print }
           ' CHANGELOG.md > "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
           test -s "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
-          {
-            echo
-            echo "## Package integrity"
-            echo
-            echo "- SHA-256: `$SHA256`"
-            echo "- npm SRI (sha512): `sha512-$SRI`"
-            echo "- Checksum file: `SHA256SUMS`"
-          } >> "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+          printf '\n## Package integrity\n\n- SHA-256: `%s`\n- npm SRI (sha512): `sha512-%s`\n- Checksum file: `SHA256SUMS`\n' \\
+            "$SHA256" "$SRI" >> "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+
+          # Fail the release if shell interpolation or an empty value corrupts the notes.
+          [[ "$SHA256" =~ ^[[:xdigit:]]{64}$ ]]
+          [[ -n "$SRI" ]]
+          grep -Fqx -- "- SHA-256: `$SHA256`" "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+          grep -Fqx -- "- npm SRI (sha512): `sha512-$SRI`" "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+          grep -Fqx -- "- Checksum file: `SHA256SUMS`" "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+          test -s "$GITHUB_WORKSPACE/SHA256SUMS"
+          grep -Fqx -- "$SHA256  $PACKAGE_TARBALL" "$GITHUB_WORKSPACE/SHA256SUMS"
 
           echo "PACKAGE_TARBALL=$PACKAGE_TARBALL" >> "$GITHUB_ENV"
       - name: Create GitHub Release and upload package assets

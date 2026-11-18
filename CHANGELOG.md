@@ -2,7 +2,15 @@
 
 Notable changes to OCR-SEARCH are recorded here. Versions are released from the matching `v<version>` Git tag.
 
+<!-- Before creating the v0.4.0 tag, change the heading below to the exact form: ## 0.4.0 -->
+
 ## 0.4.0 - Unreleased
+
+### Breaking changes
+
+- Queue saturation now throws `SearchBusyError` (`SEARCH_BUSY`) instead of `SearchWorkerError`; `SearchBusyError` is not a subclass of `SearchWorkerError`.
+- Requests made after the Japanese Worker reaches the terminal `dead` state now throw `SearchUnavailableError` instead of `SearchWorkerError`.
+- Punctuation-only Japanese queries now throw `SearchQueryValidationError` instead of `SearchWorkerError`.
 
 ### Added
 

@@ -23,6 +23,8 @@ interface JapaneseSearchRuntimeOptions extends JapaneseSearchOptions {
   restartBaseDelayMs?: number;
   restartMaxDelayMs?: number;
   maxRestartAttempts?: number;
+  /** Test-only override for checking deterministic runtime-asset preflight failures. */
+  runtimeAssetPaths?: readonly (string | URL)[];
 }
 
 interface ReadyWaiter {
@@ -145,8 +147,12 @@ export class JapaneseSearchRepository {
     try {
       accessSync(options.indexPath, constants.R_OK);
       accessSync(options.extensionPath, constants.R_OK);
-      // A missing packaged Worker is deterministic and must fail construction, not retry. 
-      accessSync(new URL("./worker.mjs", import.meta.url), constants.R_OK);
+      // Missing packaged runtime assets are deterministic and must fail construction, not retry.
+      const runtimeAssets = options.runtimeAssetPaths ?? [
+        new URL("./worker.mjs", import.meta.url),
+        new URL("../reviewed.mjs", import.meta.url),
+      ];
+      for (const asset of runtimeAssets) accessSync(asset, constants.R_OK);
     } catch (cause) {
       throw new SearchUnavailableError("Japanese search files are unavailable.", { cause });
     }
