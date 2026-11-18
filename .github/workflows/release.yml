@@ -78,15 +78,17 @@ jobs:
             found { print }
           ' CHANGELOG.md > "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
           test -s "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
-          printf '\n## Package integrity\n\n- SHA-256: `%s`\n- npm SRI (sha512): `sha512-%s`\n- Checksum file: `SHA256SUMS`\n' \\
-            "$SHA256" "$SRI" >> "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+          printf '\n## Package integrity\n\n- SHA-256: `%s`\n- npm SRI (sha512): `sha512-%s`\n- Checksum file: `SHA256SUMS`\n' "$SHA256" "$SRI" >> "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
 
           # Fail the release if shell interpolation or an empty value corrupts the notes.
           [[ "$SHA256" =~ ^[[:xdigit:]]{64}$ ]]
           [[ -n "$SRI" ]]
-          EXPECTED_SHA_LINE='- SHA-256: `'"$SHA256"'`'
-          EXPECTED_SRI_LINE='- npm SRI (sha512): `sha512-'"$SRI"'`'
-          EXPECTED_CHECKSUM_LINE='- Checksum file: `SHA256SUMS`'
+          printf -v EXPECTED_SHA_LINE \
+            '%s' "- SHA-256: \`${SHA256}\`"
+          printf -v EXPECTED_SRI_LINE \
+            '%s' "- npm SRI (sha512): \`sha512-${SRI}\`"
+          printf -v EXPECTED_CHECKSUM_LINE \
+            '%s' '- Checksum file: `SHA256SUMS`'
           grep -Fqx -- "$EXPECTED_SHA_LINE" "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
           grep -Fqx -- "$EXPECTED_SRI_LINE" "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
           grep -Fqx -- "$EXPECTED_CHECKSUM_LINE" "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
