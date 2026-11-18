@@ -4,7 +4,7 @@ Notable changes to OCR-SEARCH are recorded here. Versions are released from the 
 
 <!-- Before creating the v0.4.0 tag, change the heading below to the exact form: ## 0.4.0 -->
 
-## 0.4.0 - Unreleased
+## 0.4.0
 
 ### Breaking changes
 
