@@ -30,7 +30,7 @@
 
 ## 開発環境
 
-Node.js `>=24.0.0`（GitHub Actionsで22.16.0 / 24.xを検証済み）。
+Node.js `>=24.0.0`（Node 22 のサポートは終了。GitHub Actionsで24.x / 26.xを検証）。
 
 ```sh
 npm ci
