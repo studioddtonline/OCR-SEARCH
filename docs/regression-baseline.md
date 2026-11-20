@@ -185,3 +185,9 @@ GitHub Actions run #7（commit `6bc6947729fedab2fadfc9040485c26543589739`）でN
 
 
 日本語検索source hydrationのCI確認: GitHub Actions run #50（commit `6adee68ca695440c7b1f4b4266e376453358f53b`）で、Node.js 22.16.0 / 24.x双方の39 tests、npm ci、build、npm pack、temporary install、package import、CLI smoke testが成功。source DBの最新表示値とdeleted snapshot candidate後のpaginationを含む。
+
+
+## 現在の Node.js サポート方針
+
+
+Node.js 24.0.0 以上をサポートする。Node 22 のサポートは終了した。CI は Node.js 24.x / 26.x を対象とし、最低バージョンと最新 LTS 系の互換性を検証する。
