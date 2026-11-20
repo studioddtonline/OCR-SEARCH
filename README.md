@@ -24,13 +24,13 @@
 - 日本語 Worker source equivalence、Worker lifecycle、BM25 ranking、index replacement tests
 - CLI の標準検索と明示 opt-in の日本語検索
 - package-lock.json（lockfileVersion 3）
-- GitHub Actions: Node.js 22.16.0 / 24.x、native extension、source/test typecheck、regression tests、build、npm pack / temporary install / API import / CLI smoke test
+- GitHub Actions: Node.js 24.x / 26.x、native extension、source/test typecheck、regression tests、build、npm pack / temporary install / API import / CLI smoke test
 
 **未完了:** package licenseの選定、OCR-MCP-SERVER / BOOK-OCR Web UI consumer接続。licenseは選定中のため `private: true` を維持する。
 
 ## 開発環境
 
-Node.js `>=22.16.0`（GitHub Actionsで22.16.0 / 24.xを検証済み）。
+Node.js `>=24.0.0`（Node 22 のサポートは終了。GitHub Actionsで24.x / 26.xを検証）。
 
 ```sh
 npm ci

@@ -629,7 +629,7 @@ npm 12以降ではGitHub Releasesのremote tarball URLが既定の `allow-remote
 
 - package name: ocr-search（仮称。公開 npm を使う場合は namespace availability を確認）
 - module: ESM
-- Node engineの共通下限は `>=22.16.0` とする。Node 22.22で日本語fixture（allowExtension / Worker）およびBOOK-OCRの330テストが通った実測報告がある。22.16.0ちょうどは未検証のため、CIで最小サポート版の検証を追加し、確認前に22.16.0での動作保証を主張しない。
+- Node engineの共通下限は `>=24.0.0` とする。Node 22 のサポートは終了し、CIではNode 24.xと26.xを検証する。最低バージョンはCIで検証する。
 - exports を明示し内部 deep import を避ける。
 - files allowlist で dist / worker / notices / runtime assets を含める。
 - native binary / consumer config / test files は tarball に含めない。
@@ -734,7 +734,7 @@ npm 12以降ではGitHub Releasesのremote tarball URLが既定の `allow-remote
 
 ## 15. 実装開始前の確認事項
 
-1. **Node engine:** MCP 現行は >=22.16.0、book-ocr は Node 24+ と報告。node:sqlite API と consumer matrix を確認して確定。
+1. **Node engine:** Node 24 を最低サポートとし、Node 26 を追加のCI対象にする。
 2. **package name:** ocr-search は仮称。公開 npm の場合は namespace availability を確認。
 3. **standard result contract:** MCP tool の公開 field names / nullability / numeric representation を実装時に完全転記。
 4. **再起動運用:** OCR DB 更新または日本語 index 再構築後、ocr-mcp-server と Web UI の Node.js サーバーを再起動する。稼働中の自動再接続は要件に含めない。
